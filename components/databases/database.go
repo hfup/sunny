@@ -1,6 +1,10 @@
 package databases
 
-import "gorm.io/gorm"
+import (
+	"context"
+	"gorm.io/gorm"
+	"github.com/hfup/sunny"
+)
 
 
 // 数据库信息
@@ -14,15 +18,25 @@ type DatabaseInfo struct {
 	Charset  string `yaml:"charset" json:"charset"` // 字符集
 }
 
-
 type DBRouterFunc func(key string) (*gorm.DB, error)
+type DBInitHandler func(ctx context.Context) ([]*gorm.DB, error) // 数据库初始化
 
 
 // 数据库管理器接口
 type DatabaseMangerInf interface {
-	
+	sunny.SubServiceInf
 }
 
+
+// 数据库管理器
+type DatabaseManager struct {
+	initHandler DBInitHandler
+}
+
+// 启动数据库管理器
+func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
+	
+}
 
 
 
