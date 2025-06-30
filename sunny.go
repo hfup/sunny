@@ -14,12 +14,43 @@ type Sunny struct {
 	subServices []SubServiceInf
 	// 同步执行的 RunAble
 	syncRunAbles []RunAbleInf
-	
+	asyncRunAbles []RunAbleInf
+	requiredSubSrvSuccessCount int // 必须成功启动的子服务数量
+	currentSubSrvSuccessCount int // 当前成功启动的子服务数量
 }
 
-
+// 添加子服务
+// 参数：
+//  - srvs 子服务
+// 返回：
+//  - 错误	
 func (s *Sunny) AddSubServices(srvs ...SubServiceInf) error{
-	s.subServices = append(s.subServices,srvs...)
+	for _,srv := range srvs{
+		if srv.IsErrorStop(){
+			s.requiredSubSrvSuccessCount += 1
+		}
+		s.subServices = append(s.subServices,srv)
+	}
+	return nil
+}
+
+// 添加同步执行的 RunAble
+// 参数：
+//  - srvs 同步执行的 RunAble
+// 返回：
+//  - 错误
+func (s *Sunny) AddSyncRunAbles(srvs ...RunAbleInf) error{
+	s.syncRunAbles = append(s.syncRunAbles,srvs...)
+	return nil
+}
+
+// 添加异步执行的 RunAble
+// 参数：
+//  - srvs 异步执行的 RunAble
+// 返回：
+//  - 错误
+func (s *Sunny) AddAsyncRunAbles(srvs ...RunAbleInf) error{
+	s.asyncRunAbles = append(s.asyncRunAbles,srvs...)
 	return nil
 }
 

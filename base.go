@@ -10,7 +10,6 @@ type SubServiceInf interface {
 	ServiceName() string // 服务名称
 }
 
-
 // 可运行接口  
 type RunAbleInf interface {
 	Run(ctx context.Context,args any) error
