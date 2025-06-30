@@ -31,11 +31,19 @@ type DatabaseMangerInf interface {
 // 数据库管理器
 type DatabaseManager struct {
 	initHandler DBInitHandler
+	dbRouterFunc DBRouterFunc
 }
 
 // 启动数据库管理器
 func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
-	
+	dbs,err := d.initHandler(ctx)
+	if err != nil {
+		resultChan <- sunny.Result{
+			Code: 1,
+			Msg: "database manager start error: " + err.Error(),
+		}
+	}
+	logrus.Infof("database manager start success, db count: %d", len(dbs))
 }
 
 
