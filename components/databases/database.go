@@ -43,6 +43,21 @@ type DatabaseManager struct {
 	dbRouterFunc DBRouterFunc
 
 	dbMap map[string]*gorm.DB
+	defaultDB *gorm.DB
+}
+
+func NewDatabaseManager(initHandler DBInitHandler) *DatabaseManager {
+	return &DatabaseManager{
+		initHandler: initHandler,
+		dbMap: make(map[string]*gorm.DB),
+	}
+}
+
+// 设置数据库路由函数
+// 参数：
+//  - dbRouterFunc 数据库路由函数
+func (d *DatabaseManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
+	d.dbRouterFunc = dbRouterFunc
 }
 
 
@@ -64,20 +79,39 @@ func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- s
 				Msg: "database manager start error: " + err.Error(),
 			}
 		}
+		if dbConfig.DbId == "default" { // 默认数据库
+			d.defaultDB = db
+		}
 		d.dbMap[dbConfig.DbId] = db
+	}
+	// 启动成功
+	resultChan <- sunny.Result{
+		Code: 0,
+		Msg: "database manager start success",
 	}
 }
 
 
 // 根据key获取数据库
 func (d *DatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
-	dbKey,ok := d.dbMap[key]
+	if d.dbRouterFunc != nil {
+		return d.dbRouterFunc(key)
+	}
+	db,ok := d.dbMap[key]
 	if !ok {
 		return nil, errors.New("database not found")
 	}
-	return dbKey, nil
+	return db, nil
 }
 
+
+// 获取当前激活的数据库
+func (d *DatabaseManager) GetDefaultDB() (*gorm.DB, error) {
+	if d.defaultDB == nil {
+		return nil, errors.New("default database not found")
+	}
+	return d.defaultDB, nil
+}
 
 
 
