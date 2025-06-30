@@ -1,32 +1,31 @@
 package sunny
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"errors"
 )
-
 
 var (
 	ErrDBNotFound = errors.New("database not found")
 )
 
-type ActionHanderFunc func(c *Context)
+type ActionHandlerFunc func(c *Context)
 
 type ActionHandlerWithOrder struct {
-	ActionHandlerFunc ActionHanderFunc // 动作处理函数
-	Order int // 执行顺序
+	ActionHandlerFunc ActionHandlerFunc // 动作处理函数
+	Order             int               // 执行顺序
 }
 
 type ActionHandlerWithOrderList []ActionHandlerWithOrder
 
-
 type Context struct {
 	*gin.Context
-	curDB *gorm.DB
-	actionNext bool // 是否执行下一个中间件
-	roleLabel string // 角色标签
-	groupLabel string // 组标签
+	curDB       *gorm.DB
+	actionNext  bool   // 是否执行下一个中间件
+	roleLabel   string // 角色标签
+	groupLabel  string // 组标签
 	actionLabel string // 动作标签
 }
 
@@ -35,14 +34,13 @@ func (c *Context) GetDB() (*gorm.DB, error) {
 	if c.curDB == nil {
 		return nil, ErrDBNotFound
 	}
-	return  c.curDB,nil
+	return c.curDB, nil
 }
 
 // 设置当前数据库
 func (c *Context) SetDB(db *gorm.DB) {
 	c.curDB = db
 }
-
 
 func (c *Context) ActionNext() bool {
 	return c.actionNext
@@ -60,11 +58,25 @@ func (c *Context) GroupLabel() string {
 	return c.groupLabel
 }
 
+func (c *Context) Clone() *Context {
+	// 复制 gin.Context
+	ginCtx := c.Context.Copy()
+	newCtx := &Context{
+		Context:     ginCtx,
+		curDB:       c.curDB,
+		actionNext:  c.actionNext,
+		roleLabel:   c.roleLabel,
+		groupLabel:  c.groupLabel,
+		actionLabel: c.actionLabel,
+	}
+	return newCtx
+}
+
 // JsonResult 返回json结果
 func (c *Context) JsonResult(code int, msg string, data ...any) {
 	result := gin.H{
 		"err_code": code,
-		"message":    msg,
+		"message":  msg,
 	}
 
 	if len(data) == 1 {
