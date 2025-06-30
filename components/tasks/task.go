@@ -13,14 +13,10 @@ import (
 
 // TaskInf 任务接口
 type TaskInf interface {
-	sunny.RunAbleInf
+	Run(ctx context.Context) error // 执行任务
 	TaskId() string                // 任务id
 	TaskName() string              // 任务名称
 	IsContinue() bool              // 是否持续执行 
-	Stop() error                   // 停止任务
-	Continue() error               // 继续任务
-	IsCycle() bool                 // 是否循环执行
-	CycleTime() time.Duration      // 循环时间
 	GetExecuteTime() time.Time     // 获取执行时间
 }
 
@@ -45,12 +41,13 @@ type TaskInitHandler func(ctx context.Context) ([]TaskInf, error)
 type TaskWrapper struct {
 	Task TaskInf
 	IsRunning bool
+	IsStop bool
 }
 
 type TaskManger struct {
 	sunny.SubServiceInf
 	taskInitHandler TaskInitHandler
-	taskMap map[string]TaskWrapper
+	taskMap map[string]*TaskWrapper
 	taskLock sync.RWMutex
 }
 
@@ -74,7 +71,7 @@ func (t *TaskManger) AddTask(task TaskInf) error {
 	if _, ok := t.taskMap[task.TaskId()]; ok {
 		return errors.New("task already exists")
 	}
-	t.taskMap[task.TaskId()] = TaskWrapper{
+	t.taskMap[task.TaskId()] = &TaskWrapper{
 		Task: task,
 		IsRunning: false,
 	}
@@ -138,11 +135,11 @@ func (t *TaskManger) PauseTask(taskId string) error {
 	t.taskLock.Lock()
 	defer t.taskLock.Unlock()
 
-	if _, ok := t.taskMap[taskId]; !ok {
+	val,ok := t.taskMap[taskId]
+	if !ok {
 		return errors.New("task not found")
 	}
-
-	t.taskMap[taskId].Task.Stop()
+	val.IsStop = true
 	return nil
 }
 
@@ -155,43 +152,76 @@ func (t *TaskManger) ResumeTask(taskId string) error {
 	t.taskLock.Lock()
 	defer t.taskLock.Unlock()
 
-	if _, ok := t.taskMap[taskId]; !ok {
+	val,ok := t.taskMap[taskId]
+	if !ok {
 		return errors.New("task not found")
 	}
-
-	t.taskMap[taskId].Task.Continue()
+	val.IsStop = false
 	return nil
 }
 
 // 启动任务
-func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) error {
+func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
 	taskList, err := t.taskInitHandler(ctx)
 	if err != nil {
-		return err
+		logrus.Errorf("task init error: %v", err)
+		resultChan <- sunny.Result{
+			Code: 1,
+			Msg: "task manager start error;task init error: " + err.Error(),
+		}
+		return 
 	}
 
 	for _, task := range taskList {
 		err = t.AddTask(task)
 		if err != nil {
-			return err
+			logrus.Errorf("task add error: %v", err)
+			resultChan <- sunny.Result{
+				Code: 1,
+				Msg: "task manager start error;task add error: " + err.Error(),
+			}
+			return 
 		}
 	}
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
+	resultChan <- sunny.Result{
+		Code: 0,
+		Msg: "task manager start success",
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return 
 		case <-ticker.C:
 			// 检查任务
 			for _, task := range t.taskMap {
-				if task.IsRunning {
+				if task.IsRunning { // 如果任务正在运行，则跳过
 					continue
 				}
-				
-				
+				if task.IsStop { // 如果任务被暂停，则跳过
+					continue
+				}
+				if task.Task.GetExecuteTime().Before(time.Now()) {
+					task.IsRunning = true
+
+					go func() {
+						defer func() {
+							// 如果任务执行失败，获取panic
+							if r := recover(); r != nil {
+								logrus.Errorf("task %s run panic: %v", task.Task.TaskId(), r)
+							}
+							task.IsRunning = false
+						}()
+						err := task.Task.Run(ctx)
+						if err != nil {
+							logrus.Errorf("task %s run error: %v", task.Task.TaskId(), err)
+						}
+					}()
+				}
 			}
 		}
 	}
