@@ -3,10 +3,9 @@ package databases
 import (
 	"context"
 	"gorm.io/gorm"
-	"github.com/hfup/sunny"
+	"github.com/hfup/sunny/types"
 	"errors"
 )
-
 
 // 数据库信息
 type DatabaseInfo struct {
@@ -33,7 +32,8 @@ type DBInitHandler func(ctx context.Context,opt any) ([]*DBConfig, error) // 数
 
 // 数据库管理器接口
 type DatabaseMangerInf interface {
-	sunny.SubServiceInf
+	types.SubServiceInf
+	GetDBFromKey(key string) (*gorm.DB, error)
 }
 
 
@@ -62,21 +62,21 @@ func (d *DatabaseManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
 
 
 // 启动数据库管理器
-func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
+func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
 	dbConfigs,err := d.initHandler(ctx,args)
 	if err != nil {
-		resultChan <- sunny.Result{
-			Code: 1,
-			Msg: "database manager start error: " + err.Error(),
+		resultChan <- types.Result[any]{
+			ErrCode: 1,
+			Message: "database manager start error: " + err.Error(),
 		}
 		return
 	}
 	for _,dbConfig := range dbConfigs{
 		db,err := MysqlConnect(dbConfig)
 		if err != nil {
-			resultChan <- sunny.Result{
-				Code: 1,
-				Msg: "database manager start error: " + err.Error(),
+			resultChan <- types.Result[any]{
+				ErrCode: 1,
+				Message: "database manager start error: " + err.Error(),
 			}
 		}
 		if dbConfig.DbId == "default" { // 默认数据库
@@ -85,9 +85,9 @@ func (d *DatabaseManager) Start(ctx context.Context,args any,resultChan chan<- s
 		d.dbMap[dbConfig.DbId] = db
 	}
 	// 启动成功
-	resultChan <- sunny.Result{
-		Code: 0,
-		Msg: "database manager start success",
+	resultChan <- types.Result[any]{
+		ErrCode: 0,
+		Message: "database manager start success",
 	}
 }
 

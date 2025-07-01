@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hfup/sunny"
+	"github.com/hfup/sunny/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,7 +22,7 @@ type TaskInf interface {
 
 // TaskManagerInf 任务管理器接口
 type TaskManagerInf interface {
-	sunny.SubServiceInf
+	types.SubServiceInf
 	AddTask(task TaskInf) error
 	RemoveTask(taskId string) error
 	GetTask(taskId string) (TaskInf, error)
@@ -45,7 +45,7 @@ type TaskWrapper struct {
 }
 
 type TaskManger struct {
-	sunny.SubServiceInf
+	types.SubServiceInf
 	taskInitHandler TaskInitHandler
 	taskMap map[string]*TaskWrapper
 	taskLock sync.RWMutex
@@ -161,13 +161,13 @@ func (t *TaskManger) ResumeTask(taskId string) error {
 }
 
 // 启动任务
-func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
+func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
 	taskList, err := t.taskInitHandler(ctx)
 	if err != nil {
 		logrus.Errorf("task init error: %v", err)
-		resultChan <- sunny.Result{
-			Code: 1,
-			Msg: "task manager start error;task init error: " + err.Error(),
+		resultChan <- types.Result[any]{
+			ErrCode: 1,
+			Message: "task manager start error;task init error: " + err.Error(),
 		}
 		return 
 	}
@@ -176,9 +176,9 @@ func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- sunny.
 		err = t.AddTask(task)
 		if err != nil {
 			logrus.Errorf("task add error: %v", err)
-			resultChan <- sunny.Result{
-				Code: 1,
-				Msg: "task manager start error;task add error: " + err.Error(),
+			resultChan <- types.Result[any]{
+				ErrCode: 1,
+				Message: "task manager start error;task add error: " + err.Error(),
 			}
 			return 
 		}
@@ -187,9 +187,9 @@ func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- sunny.
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	resultChan <- sunny.Result{
-		Code: 0,
-		Msg: "task manager start success",
+	resultChan <- types.Result[any]{
+		ErrCode: 0,
+		Message: "task manager start success",
 	}
 
 	for {

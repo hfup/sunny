@@ -11,8 +11,7 @@ import (
 
 // RedisCache Redis缓存实现
 type RedisCache[T any] struct {
-	client        redis.Cmdable // Redis客户端接口，支持单机和集群
-	clusterClient *redis.ClusterClient // 集群客户端
+	client        redis.UniversalClient
 	prefix        string        // 前缀
 	ttl           time.Duration // 过期时间
 }
@@ -27,10 +26,9 @@ func NewRedisCache[T any](client *redis.Client, prefix string, ttl time.Duration
 }
 
 // NewRedisClusterCache 创建新的Redis集群缓存实例
-func NewRedisClusterCache[T any](clusterClient *redis.ClusterClient, prefix string, ttl time.Duration) *RedisCache[T] {
+func NewRedisClusterCache[T any](client redis.UniversalClient, prefix string, ttl time.Duration) *RedisCache[T] {
 	return &RedisCache[T]{
-		client:        clusterClient,
-		clusterClient: clusterClient,
+		client:        client,
 		prefix:        prefix,
 		ttl:           ttl,
 	}
@@ -108,12 +106,6 @@ func (r *RedisCache[T]) Delete(ctx context.Context, key string) error {
 func (r *RedisCache[T]) Clean(ctx context.Context) error {
 	pattern := r.getKey("*")
 	
-	// 判断是否为集群模式
-	if r.clusterClient != nil {
-		return r.cleanCluster(ctx, pattern)
-	}
-	
-	// 单机模式使用 Lua 脚本
 	script := `
 		local keys = redis.call('KEYS', ARGV[1])
 		if #keys > 0 then
@@ -130,57 +122,12 @@ func (r *RedisCache[T]) Clean(ctx context.Context) error {
 	return nil
 }
 
-// cleanCluster 集群模式下清除缓存
-func (r *RedisCache[T]) cleanCluster(ctx context.Context, pattern string) error {
-	const batchSize = 1000
-	
-	// 对每个节点执行清理操作
-	err := r.clusterClient.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
-		cursor := uint64(0)
-		for {
-			keys, nextCursor, err := client.Scan(ctx, cursor, pattern, batchSize).Result()
-			if err != nil {
-				return fmt.Errorf("failed to scan keys: %w", err)
-			}
-			
-			if len(keys) > 0 {
-				// 分批删除，避免单次操作键过多
-				for i := 0; i < len(keys); i += batchSize {
-					end := i + batchSize
-					if end > len(keys) {
-						end = len(keys)
-					}
-					
-					if err := client.Del(ctx, keys[i:end]...).Err(); err != nil {
-						return fmt.Errorf("failed to delete keys: %w", err)
-					}
-				}
-			}
-			
-			cursor = nextCursor
-			if cursor == 0 {
-				break
-			}
-		}
-		return nil
-	})
-	
-	if err != nil {
-		return fmt.Errorf("failed to clean cluster cache: %w", err)
-	}
-	
-	return nil
-}
-
 // Close 关闭Redis连接
 func (r *RedisCache[T]) Close() error {
-	if r.clusterClient != nil {
-		return r.clusterClient.Close()
+	if r.client == nil {
+		return nil
 	}
-	if client, ok := r.client.(*redis.Client); ok {
-		return client.Close()
-	}
-	return nil
+	return r.client.Close()
 }
 
 // Ping 检查Redis连接状态

@@ -7,13 +7,10 @@ import (
 
 	"github.com/hfup/sunny/utils"
 	"github.com/sirupsen/logrus"
+	"github.com/go-redis/redis/v8"
+	"github.com/hfup/sunny/components/databases"
+	"github.com/hfup/sunny/types"
 )
-
-// Result 结果
-type Result struct {
-	Code    int    `json:"code"`
-	Msg     string `json:"msg"`
-}
 
 
 // Sunny 主服务
@@ -22,10 +19,14 @@ type Sunny struct {
 	activeEnv string // 激活环境 dev,test prod
 	runPath string // 运行路径
 	config *Config // 配置
-	subServices []SubServiceInf
+	subServices []types.SubServiceInf
+
+	redisClient redis.UniversalClient
+	databaseManager *databases.DatabaseManager
+
 	// 同步执行的 RunAble
-	syncRunAbles []RunAbleInf
-	asyncRunAbles []RunAbleInf
+	syncRunAbles []types.RunAbleInf
+	asyncRunAbles []types.RunAbleInf
 	requiredSubSrvSuccessCount int // 必须成功启动的子服务数量
 	currentSubSrvSuccessCount int // 当前成功启动的子服务数量
 }
@@ -59,6 +60,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 }
 
 
+// 加载配置文件
 func (s *Sunny) loadConfig() error{
 	configer := &Config{}
 	if s.configPath == ""{
@@ -99,7 +101,7 @@ func (s *Sunny) loadConfig() error{
 //  - srvs 子服务
 // 返回：
 //  - 错误	
-func (s *Sunny) AddSubServices(srvs ...SubServiceInf) error{
+func (s *Sunny) AddSubServices(srvs ...types.SubServiceInf) error{
 	for _,srv := range srvs{
 		if srv.IsErrorStop(){
 			s.requiredSubSrvSuccessCount += 1
@@ -114,7 +116,7 @@ func (s *Sunny) AddSubServices(srvs ...SubServiceInf) error{
 //  - srvs 同步执行的 RunAble
 // 返回：
 //  - 错误
-func (s *Sunny) AddSyncRunAbles(srvs ...RunAbleInf) error{
+func (s *Sunny) AddSyncRunAbles(srvs ...types.RunAbleInf) error{
 	s.syncRunAbles = append(s.syncRunAbles,srvs...)
 	return nil
 }
@@ -124,7 +126,7 @@ func (s *Sunny) AddSyncRunAbles(srvs ...RunAbleInf) error{
 //  - srvs 异步执行的 RunAble
 // 返回：
 //  - 错误
-func (s *Sunny) AddAsyncRunAbles(srvs ...RunAbleInf) error{
+func (s *Sunny) AddAsyncRunAbles(srvs ...types.RunAbleInf) error{
 	s.asyncRunAbles = append(s.asyncRunAbles,srvs...)
 	return nil
 }
@@ -140,3 +142,5 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 
 	return nil
 }
+
+

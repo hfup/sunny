@@ -89,7 +89,7 @@ func (l *UniLimiterLocker) Release(key string){
 
 // RedisLimiterLocker Redis分布式锁实现
 type RedisLimiterLocker struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 	defaultTTL time.Duration // 锁的默认过期时间
 }
 
@@ -102,7 +102,7 @@ type RedisLimiterLocker struct {
 //   - defaultTTL: 默认锁过期时间
 // 返回:
 //   - *RedisLimiterLocker Redis分布式锁实例
-func NewRedisLimiterLocker(rdb *redis.Client, defaultTTL time.Duration) *RedisLimiterLocker {
+func NewRedisLimiterLocker(rdb redis.UniversalClient, defaultTTL time.Duration) *RedisLimiterLocker {
 	if defaultTTL <= 0 {
 		defaultTTL = 30 * time.Second // 默认30秒
 	}
