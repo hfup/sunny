@@ -1,4 +1,4 @@
-package sunny
+package types
 
 
 type Config struct {
@@ -7,6 +7,7 @@ type Config struct {
 	WebRoutes []*WebRouterInfo  `yaml:"web_routes" json:"web_routes"` // 路由信息
 	Services  []*ServiceInfo    `yaml:"services" json:"services"`     // 服务信息
 	Redis     *RedisConfig      `yaml:"redis" json:"redis"`             // redis 配置
+
 }
 
 // 路由信息
