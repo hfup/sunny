@@ -36,7 +36,7 @@ type Sunny struct {
 
 	subServices []types.SubServiceInf
 	redisClient redis.UniversalClient
-	databaseManager *databases.DatabaseManager
+	databaseManager databases.DatabaseMangerInf
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -74,6 +74,24 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 
 	if len(s.config.WebRoutes) > 0 {
 		s.initWebRoutes(s.config.WebRoutes)
+	}
+
+	// 初始化 redis
+	if s.config.Redis != nil{
+		if s.config.Redis.IsCluster{
+			
+		}
+	}
+
+
+	if s.config.DatabaseManager != nil{
+		if len(s.config.DatabaseManager.DBs) == 0{
+			logrus.Warn("database manager db config is empty")
+		}else{
+			databaseManager := databases.NewLocalDatabaseManager(s.config.DatabaseManager.DBs)
+			s.AddSubServices(databaseManager)
+			s.databaseManager = databaseManager
+		}
 	}
 
 

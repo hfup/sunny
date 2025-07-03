@@ -8,32 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// 数据库信息
-type DatabaseInfo struct {
-	Driver   string `yaml:"driver" json:"driver"` // mysql, postgres, sqlite
-	Host     string `yaml:"host" json:"host"`
-	Port     int    `yaml:"port" json:"port"`
-	User     string `yaml:"user" json:"user"`
-	Password string `yaml:"password" json:"password"`
-	DbName   string `yaml:"db_name" json:"db_name"`
-	Charset  string `yaml:"charset" json:"charset"` // 字符集
-}
-
-type DBConfig struct {
-	DatabaseInfo *DatabaseInfo
-	DbId         string `yaml:"db_id" json:"db_id"`                   // 数据库id 唯一
-	MaxIdelConns int    `yaml:"max_idel_conns" json:"max_idel_conns"` // 最大空闲连接数
-	MaxOpenConns int    `yaml:"max_open_conns" json:"max_open_conns"` // 最大打开连接数
-	MaxLifetime  int    `yaml:"max_lifetime" json:"max_lifetime"`     // 连接最大生命周期
-}
-
 type DBRouterFunc func(key string) (*gorm.DB, error)
-type DBInitHandler func(ctx context.Context, opt any) ([]*DBConfig, error) // 数据库初始化
+type DBInitHandler func(ctx context.Context, opt any) ([]*types.DBConfig, error) // 数据库初始化
 
 // 数据库管理器接口
 type DatabaseMangerInf interface {
 	types.SubServiceInf
 	GetDBFromKey(key string) (*gorm.DB, error)
+	SetRouterHandler(routerHandler DBRouterFunc) // 设置路由方法
 }
 
 // 数据库管理器
@@ -108,3 +90,72 @@ func (d *DatabaseManager) GetDefaultDB() (*gorm.DB, error) {
 	}
 	return d.defaultDB, nil
 }
+
+
+
+type LocalDatabaseManager struct {
+	dbConfigs []*types.DBConfig
+	dbMap     map[string]*gorm.DB
+	defaultDB *gorm.DB
+	dbRouterFunc DBRouterFunc
+}
+
+func NewLocalDatabaseManager(dbConfigs []*types.DBConfig) *LocalDatabaseManager {
+	return &LocalDatabaseManager{
+		dbConfigs: dbConfigs,
+	}
+}
+
+func (d *LocalDatabaseManager) SetRouterHandler(handler DBRouterFunc) {
+	d.dbRouterFunc = handler
+}
+
+// 启动本地数据库管理器
+func (d *LocalDatabaseManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+	for _, dbConfig := range d.dbConfigs {
+		db, err := MysqlConnect(dbConfig)
+		if err != nil {
+			resultChan <- types.Result[any]{
+				ErrCode: 1,
+				Message: "database manager start error: " + err.Error(),
+			}
+			return
+		}
+		if dbConfig.DbId == "default" { // 默认数据库
+			d.defaultDB = db
+		}
+		d.dbMap[dbConfig.DbId] = db
+	}
+	// 启动成功
+	resultChan <- types.Result[any]{
+		ErrCode: 0,
+		Message: "database manager start success",
+	}
+}
+
+
+// 获取数据库实例
+func (d *LocalDatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
+	if key == "default" {
+		return  d.defaultDB,nil
+	}
+	if d.dbRouterFunc != nil {
+		return d.dbRouterFunc(key)
+	}
+	db, ok := d.dbMap[key]
+	if !ok {
+		return nil, errors.New("database not found")
+	}
+	return db, nil
+}
+
+
+// 遇到错误 终止整个程序执行
+func (d *LocalDatabaseManager) IsErrorStop() bool {
+	return  true
+}
+
+func (d *LocalDatabaseManager) ServiceName() string {
+	return  "local database manager service"
+}
+

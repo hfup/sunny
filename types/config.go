@@ -7,6 +7,7 @@ type Config struct {
 	WebRoutes []*WebRouterInfo  `yaml:"web_routes" json:"web_routes"` // 路由信息
 	Services  []*ServiceInfo    `yaml:"services" json:"services"`     // 服务信息
 	Redis     *RedisConfig      `yaml:"redis" json:"redis"`             // redis 配置
+	DatabaseManager *DatabaseManagerInfo `yaml:"database_manager" json:"database_manager"` // 数据库管理器配置
 
 }
 
@@ -37,4 +38,32 @@ type RedisConfig struct {
 	MinIdleConns int `yaml:"min_idle_conns" json:"min_idle_conns"` // 最小空闲连接数
 	Password  string `yaml:"password" json:"password"` // 密码
 	DB        int `yaml:"db" json:"db"` // 数据库
+}
+
+
+// 数据库信息
+type DatabaseInfo struct {
+	Driver   string `yaml:"driver" json:"driver"` // mysql, postgres, sqlite
+	Host     string `yaml:"host" json:"host"`
+	Port     int    `yaml:"port" json:"port"`
+	User     string `yaml:"user" json:"user"`
+	Password string `yaml:"password" json:"password"`
+	DbName   string `yaml:"db_name" json:"db_name"`
+	Charset  string `yaml:"charset" json:"charset"` // 字符集
+}
+
+type DBConfig struct {
+	DatabaseInfo *DatabaseInfo
+	DbId         string `yaml:"db_id" json:"db_id"`                   // 数据库id 唯一
+	MaxIdelConns int    `yaml:"max_idel_conns" json:"max_idel_conns"` // 最大空闲连接数
+	MaxOpenConns int    `yaml:"max_open_conns" json:"max_open_conns"` // 最大打开连接数
+	MaxLifetime  int    `yaml:"max_lifetime" json:"max_lifetime"`     // 连接最大生命周期
+}
+
+// 数据库管理器配置
+type DatabaseManagerInfo struct {
+	// 本地配置文件如果配置了 Db 默认就是从本地配置获取 远程拉取配置 通过延迟 注入
+	//IsLocal int8 `yaml:"is_local" json:"is_local"` // 1 从本地配置获取 0 从远程服务器服务拉取配置
+	IsDebug int8 `yaml:"is_debug,omitempty" json:"is_debug,omitempty"` // 1 打印日志 0 不打印日志
+	DBs []*DBConfig `yaml:"dbs,omitempty" json:"dbs,omitempty"` // 数据库配置
 }
