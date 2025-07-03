@@ -12,14 +12,14 @@ type DBRouterFunc func(key string) (*gorm.DB, error)
 type DBInitHandler func(ctx context.Context, opt any) ([]*types.DBConfig, error) // 数据库初始化
 
 // 数据库管理器接口
-type DatabaseMangerInf interface {
+type DatabaseClientMangerInf interface {
 	types.SubServiceInf
 	GetDBFromKey(key string) (*gorm.DB, error)
 	SetRouterHandler(routerHandler DBRouterFunc) // 设置路由方法
 }
 
 // 数据库管理器
-type DatabaseManager struct {
+type DatabaseClientManager struct {
 	initHandler  DBInitHandler
 	dbRouterFunc DBRouterFunc
 
@@ -27,8 +27,8 @@ type DatabaseManager struct {
 	defaultDB *gorm.DB
 }
 
-func NewDatabaseManager(initHandler DBInitHandler) *DatabaseManager {
-	return &DatabaseManager{
+func NewDatabaseClientManager(initHandler DBInitHandler) *DatabaseClientManager {
+	return &DatabaseClientManager{
 		initHandler: initHandler,
 		dbMap:       make(map[string]*gorm.DB),
 	}
@@ -37,12 +37,12 @@ func NewDatabaseManager(initHandler DBInitHandler) *DatabaseManager {
 // 设置数据库路由函数
 // 参数：
 //   - dbRouterFunc 数据库路由函数
-func (d *DatabaseManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
+func (d *DatabaseClientManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
 	d.dbRouterFunc = dbRouterFunc
 }
 
 // 启动数据库管理器
-func (d *DatabaseManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+func (d *DatabaseClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
 	dbConfigs, err := d.initHandler(ctx, args)
 	if err != nil {
 		resultChan <- types.Result[any]{
@@ -72,7 +72,7 @@ func (d *DatabaseManager) Start(ctx context.Context, args any, resultChan chan<-
 }
 
 // 根据key获取数据库
-func (d *DatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
+func (d *DatabaseClientManager) GetDBFromKey(key string) (*gorm.DB, error) {
 	if d.dbRouterFunc != nil {
 		return d.dbRouterFunc(key)
 	}
@@ -84,7 +84,7 @@ func (d *DatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
 }
 
 // 获取当前激活的数据库
-func (d *DatabaseManager) GetDefaultDB() (*gorm.DB, error) {
+func (d *DatabaseClientManager) GetDefaultDB() (*gorm.DB, error) {
 	if d.defaultDB == nil {
 		return nil, errors.New("default database not found")
 	}
@@ -93,25 +93,26 @@ func (d *DatabaseManager) GetDefaultDB() (*gorm.DB, error) {
 
 
 
-type LocalDatabaseManager struct {
+type LocalDatabaseClientManager struct {
 	dbConfigs []*types.DBConfig
 	dbMap     map[string]*gorm.DB
 	defaultDB *gorm.DB
 	dbRouterFunc DBRouterFunc
 }
 
-func NewLocalDatabaseManager(dbConfigs []*types.DBConfig) *LocalDatabaseManager {
-	return &LocalDatabaseManager{
+func NewLocalDatabaseClientManager(dbConfigs []*types.DBConfig) *LocalDatabaseClientManager {
+	return &LocalDatabaseClientManager{
 		dbConfigs: dbConfigs,
+		dbMap: make(map[string]*gorm.DB),
 	}
 }
 
-func (d *LocalDatabaseManager) SetRouterHandler(handler DBRouterFunc) {
+func (d *LocalDatabaseClientManager) SetRouterHandler(handler DBRouterFunc) {
 	d.dbRouterFunc = handler
 }
 
 // 启动本地数据库管理器
-func (d *LocalDatabaseManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
 	for _, dbConfig := range d.dbConfigs {
 		db, err := MysqlConnect(dbConfig)
 		if err != nil {
@@ -135,7 +136,7 @@ func (d *LocalDatabaseManager) Start(ctx context.Context, args any, resultChan c
 
 
 // 获取数据库实例
-func (d *LocalDatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
+func (d *LocalDatabaseClientManager) GetDBFromKey(key string) (*gorm.DB, error) {
 	if key == "default" {
 		return  d.defaultDB,nil
 	}
@@ -151,11 +152,11 @@ func (d *LocalDatabaseManager) GetDBFromKey(key string) (*gorm.DB, error) {
 
 
 // 遇到错误 终止整个程序执行
-func (d *LocalDatabaseManager) IsErrorStop() bool {
+func (d *LocalDatabaseClientManager) IsErrorStop() bool {
 	return  true
 }
 
-func (d *LocalDatabaseManager) ServiceName() string {
+func (d *LocalDatabaseClientManager) ServiceName() string {
 	return  "local database manager service"
 }
 

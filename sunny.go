@@ -35,8 +35,8 @@ type Sunny struct {
 	rolesAfterHandlers map[string][]ActionHandlerWithOrder // 角色后置处理器
 
 	subServices []types.SubServiceInf
-	redisClient redis.UniversalClient
-	databaseManager databases.DatabaseMangerInf
+	redisClientManager databases.RedisClientManagerInf // redis 管理器
+	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -77,26 +77,29 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	}
 
 	// 初始化 redis
-	if s.config.Redis != nil{
-		if s.config.Redis.IsCluster{
-			
-		}
-	}
-
-
-	if s.config.DatabaseManager != nil{
-		if len(s.config.DatabaseManager.DBs) == 0{
-			logrus.Warn("database manager db config is empty")
+	if s.config.RedisClientManager != nil{
+		if len(s.config.RedisClientManager.RedisConfigs) == 0{
+			logrus.Warn("redis client manager redis config is empty")
 		}else{
-			databaseManager := databases.NewLocalDatabaseManager(s.config.DatabaseManager.DBs)
-			s.AddSubServices(databaseManager)
-			s.databaseManager = databaseManager
+			redisClientManager := databases.NewLocalRedisClientManager(s.config.RedisClientManager.RedisConfigs)
+			s.AddSubServices(redisClientManager)
+			s.redisClientManager = redisClientManager
 		}
 	}
 
+	// 初始化数据库
+	if s.config.DatabaseClientManager != nil{
+			logrus.Warn("database manager db config is empty")
+	}else{
+			databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.DatabaseClientManager.DBs)
+			s.AddSubServices(databaseClientManager)
+			s.databaseClientManager = databaseClientManager
+	}
 
+	
 	return nil
 }
+
 
 
 // 加载配置文件
