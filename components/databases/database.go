@@ -113,6 +113,17 @@ func (d *LocalDatabaseClientManager) SetRouterHandler(handler DBRouterFunc) {
 
 // 启动本地数据库管理器
 func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+	if len(d.dbConfigs) == 0 {
+		resultChan <- types.Result[any]{
+			ErrCode: 1,
+			Message: "database manager start error: db configs is empty",
+		}
+		return
+	}
+	isSingle := false
+	if len(d.dbConfigs) == 1 {
+		isSingle = true
+	}
 	for _, dbConfig := range d.dbConfigs {
 		db, err := MysqlConnect(dbConfig)
 		if err != nil {
@@ -122,10 +133,13 @@ func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, result
 			}
 			return
 		}
-		if dbConfig.DbId == "default" { // 默认数据库
+		if isSingle {
 			d.defaultDB = db
+			d.dbMap["default"] = db
+			break
+		}else{
+			d.dbMap[dbConfig.DbId] = db
 		}
-		d.dbMap[dbConfig.DbId] = db
 	}
 	// 启动成功
 	resultChan <- types.Result[any]{
