@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hfup/sunny"
+	"github.com/hfup/sunny/types"
 	"github.com/hfup/sunny/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -192,13 +192,14 @@ func NewJwtKeyManager(chainCapacity int,keyUpdatePeriod time.Duration,keyInitHan
 	}
 }
 
-func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- sunny.Result) {
+func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
 	// 初始化密钥
 	keyList,index,err := j.keyInitHandler(ctx) // 这里的返回的排序 asc
 	if err != nil {
-		resultChan <- sunny.Result{
-			Code:    -1,
-			Msg: "初始化密钥失败",
+		resultChan <- types.Result[any]	{
+			ErrCode: 1,
+			Message: "初始化密钥失败",
+			Data: nil,
 		}
 		return
 	}

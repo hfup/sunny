@@ -76,7 +76,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.initWebRoutes(s.config.WebRoutes)
 	}
 
-	// 处理mq服务
+
 	return nil
 }
 
