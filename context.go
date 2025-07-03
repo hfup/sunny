@@ -4,11 +4,13 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
 var (
 	ErrDBNotFound = errors.New("database not found")
+	ErrRedisClientNotFound = errors.New("redis client not found")
 )
 
 type ActionHandlerFunc func(c *Context)
@@ -23,6 +25,7 @@ type ActionHandlerWithOrderList []ActionHandlerWithOrder
 type Context struct {
 	*gin.Context
 	curDB       *gorm.DB
+	curRedisClient redis.UniversalClient
 	actionNext  bool   // 是否执行下一个中间件
 	roleLabel   string // 角色标签
 	groupLabel  string // 组标签
@@ -41,6 +44,20 @@ func (c *Context) GetDB() (*gorm.DB, error) {
 func (c *Context) SetDB(db *gorm.DB) {
 	c.curDB = db
 }
+
+// 获取当前 redis 客户端
+func (c *Context) GetRedisClient() (redis.UniversalClient, error) {
+	if c.curRedisClient == nil {
+		return nil, ErrRedisClientNotFound
+	}
+	return c.curRedisClient, nil
+}
+
+// 设置当前 redis 客户端
+func (c *Context) SetRedisClient(redisClient redis.UniversalClient) {
+	c.curRedisClient = redisClient
+}
+
 
 func (c *Context) ActionNext() bool {
 	return c.actionNext

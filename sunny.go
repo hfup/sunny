@@ -7,7 +7,6 @@ import (
 
 	"github.com/hfup/sunny/utils"
 	"github.com/sirupsen/logrus"
-	"github.com/go-redis/redis/v8"
 	"github.com/hfup/sunny/components/databases"
 	"github.com/hfup/sunny/types"
 
@@ -96,7 +95,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 			s.databaseClientManager = databaseClientManager
 	}
 
-	
+
 	return nil
 }
 

@@ -169,3 +169,13 @@ func (r *RedisCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	
 	return count > 0, nil
 }
+
+
+
+// 因为存在多个客户端需要根据 key 获取对应的客户端
+// 每个Key 对应一个 cache 单例  
+// 如果系统本身就是只有 一个 redis 客户端 那么直接使用 NewRedisCache 即可
+type RedisCacheManager struct {
+	redisCacheMap map[string]*RedisCache[any] // 这里也有问题 就是范型
+
+}
