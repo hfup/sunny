@@ -14,6 +14,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+
+	"google.golang.org/grpc"
+
+	"net"
+	"fmt"
+	"time"
+	"syscall"
+	"os/signal"
+	"net/http"
 )
 	
 var (
@@ -32,6 +41,11 @@ func GetApp() *Sunny{
 				multiRoleHandlers: make(map[string]MultiRoleHandler),
 				rolesBeforeHandlers: make(map[string][]ActionHandlerWithOrder),
 				rolesAfterHandlers: make(map[string][]ActionHandlerWithOrder),
+				subServices: make([]types.SubServiceInf,0),
+				syncRunAbles: make([]types.RunAbleInf,0),
+				asyncRunAbles: make([]types.RunAbleInf,0),
+				grpcServices: make([]types.RegisterGrpcServiceInf,0),
+				grpcServerInterceptorHandler: nil,
 			}
 		})
 	}
@@ -61,6 +75,9 @@ type Sunny struct {
 	subServices []types.SubServiceInf
 	redisClient redis.UniversalClient // redis 客户端
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
+
+	grpcServices             []types.RegisterGrpcServiceInf
+	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -305,11 +322,15 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 		return err
 	}
 
+
+	cldCtx, cldCancel := context.WithCancel(ctx) // 创建一个上下文 用于取消
+	defer cldCancel()
+
 	// 启动子服务
 	if len(s.subServices) > 0 {
 		for _,srv := range s.subServices{
 			resultChan := make(chan types.Result[any])
-			go srv.Start(ctx,s,resultChan)
+			go srv.Start(cldCtx,s,resultChan)
 			result := <-resultChan // 等待子服务启动完成
 			if result.ErrCode != 0 {
 				logrus.WithFields(logrus.Fields{
@@ -334,7 +355,7 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 	// 需要同步执行的 runAble
 	if len(s.syncRunAbles) > 0 {
 		for _,runAble := range s.syncRunAbles{
-			err=runAble.Run(ctx,s)
+			err=runAble.Run(cldCtx,s)
 			if err != nil{
 				logrus.WithFields(logrus.Fields{
 					"err_message": err.Error(),
@@ -349,7 +370,7 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 	if len(s.asyncRunAbles) > 0 {
 		for _,runAble := range s.asyncRunAbles{
 			go func (app *Sunny)  {
-				err=runAble.Run(ctx,app)
+				err=runAble.Run(cldCtx,app)
 				if err != nil{
 					logrus.WithFields(logrus.Fields{
 						"err_message": err.Error(),
@@ -362,7 +383,82 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 
 
 	// 开启服务
+	if len(s.config.Services) > 0 {
+		var grpcServer *grpc.Server
+		startHttpServices := make([]*http.Server, 0)
+		for _, service := range s.config.Services {
+			if service.Protocol == "http" {
+				httpSrv := &http.Server{
+					Addr:    fmt.Sprintf(":%d", service.Port),
+					Handler: s,
+				}
+				startHttpServices = append(startHttpServices, httpSrv)
+				go func() {
+					logrus.Infof("http server start at port: %d", service.Port)
+					if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+						logrus.Fatalf("listen: %s\n", err)
+					}
+				}()
+			}
+			if service.Protocol == "https" {
+				httpsSrv := &http.Server{
+					Addr:    fmt.Sprintf(":%d", service.Port),
+					Handler: s,
+				}
+				startHttpServices = append(startHttpServices, httpsSrv)
+				if service.CertPemPath == "" || service.KeyPemPath == "" {
+					logrus.WithFields(logrus.Fields{"service": service}).Error("https server cert pem or cert key is empty")
+					return errors.New("https server cert pem or cert key is empty")
+				}
+				go func() {
+					logrus.Infof("https server start at port: %d", service.Port)
+					if err := httpsSrv.ListenAndServeTLS(service.CertPemPath, service.KeyPemPath); err != nil && err != http.ErrServerClosed {
+						logrus.Fatalf("listen: %s\n", err)
+					}
+				}()
+			}
 
+			if service.Protocol == "grpc" {
+				lis, err := net.Listen("tcp", fmt.Sprintf(":%d", service.Port))
+				if err != nil {
+					logrus.WithFields(logrus.Fields{"err": err, "service": service}).Error("grpc server listen error")
+					return errors.New("grpc server listen error")
+				}
+				serviceOpts := make([]grpc.ServerOption, 0)
+				if s.grpcServerInterceptorHandler != nil {
+					serviceOpts = append(serviceOpts, grpc.UnaryInterceptor(s.grpcServerInterceptorHandler)) // 绑定拦截器
+				}
+				grpcServer = grpc.NewServer(serviceOpts...)
+
+				for _, service := range s.grpcServices {
+					service.RegisterGrpcService(grpcServer)
+				}
+
+				go func() {
+					logrus.Infof("grpc server start at port: %d", service.Port)
+					if err := grpcServer.Serve(lis); err != nil {
+						logrus.Fatalf("grpc server serve error: %v", err)
+					}
+				}()
+			}
+		}
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		<-quit
+
+		cctx, cancel := context.WithTimeout(ctx, 1*time.Second) // 超时为了处理未完成的请求给的最大时间 如果该时间内未完成则强制关闭
+		defer cancel()
+		for _, srv := range startHttpServices {
+			if err := srv.Shutdown(cctx); err != nil {
+				logrus.Errorf("HTTP server shutdown error: %v", err)
+			}
+		}
+		if grpcServer != nil {
+			grpcServer.GracefulStop()
+		}
+		<-cctx.Done()
+		logrus.Info("server shutdown success")
+	}
 
 
 	return nil
