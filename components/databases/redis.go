@@ -51,9 +51,9 @@ func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultCha
 		var err error
 		
 		if redisConfig.IsCluster {
-			client, err = redisClusterConnect(redisConfig)
+			client, err = RedisClusterConnect(redisConfig)
 		} else {
-			client, err = redisConnect(redisConfig)
+			client, err = RedisConnect(redisConfig)
 		}
 		
 		if err != nil {
@@ -106,7 +106,7 @@ func (l *LocalRedisClientManager) ServiceName() string {
 
 
 // 单机连接
-func redisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
+func RedisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
 	if len(redisConfig.Addrs) == 0 {
 		return nil,errors.New("redis 配置信息不存在")
 	}
@@ -127,7 +127,7 @@ func redisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error)
 }
 
 // 集群连接
-func redisClusterConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
+func RedisClusterConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
 	options := &redis.ClusterOptions{
 		Addrs:        redisConfig.Addrs,
 		Password:     redisConfig.Password,

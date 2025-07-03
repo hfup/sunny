@@ -171,11 +171,112 @@ func (r *RedisCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 
-
-// 因为存在多个客户端需要根据 key 获取对应的客户端
-// 每个Key 对应一个 cache 单例  
-// 如果系统本身就是只有 一个 redis 客户端 那么直接使用 NewRedisCache 即可
-type RedisCacheManager struct {
-	redisCacheMap map[string]*RedisCache[any] // 这里也有问题 就是范型
-
+// RawRedisCache 只负责存取 []byte，不做序列化
+type RawRedisCache struct {
+	client redis.UniversalClient
+	prefix string
+	ttl    time.Duration
 }
+
+// NewRawRedisCache 创建新的原始Redis缓存实例
+func NewRawRedisCache(client redis.UniversalClient, prefix string, ttl time.Duration) *RawRedisCache {
+	return &RawRedisCache{
+		client: client,
+		prefix: prefix,
+		ttl:    ttl,
+	}
+}
+
+// getKey 获取带前缀的键名
+func (r *RawRedisCache) getKey(key string) string {
+	if r.prefix == "" {
+		return key
+	}
+	return fmt.Sprintf("%s:%s", r.prefix, key)
+}
+
+// Get 获取原始 []byte 数据
+func (r *RawRedisCache) Get(ctx context.Context, key string) ([]byte, error) {
+	fullKey := r.getKey(key)
+	
+	result, err := r.client.Get(ctx, fullKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, fmt.Errorf("key not found: %s", key)
+		}
+		return nil, fmt.Errorf("failed to get cache: %w", err)
+	}
+	
+	return []byte(result), nil
+}
+
+// Set 设置原始 []byte 数据
+func (r *RawRedisCache) Set(ctx context.Context, key string, value []byte) error {
+	fullKey := r.getKey(key)
+	
+	if err := r.client.Set(ctx, fullKey, value, r.ttl).Err(); err != nil {
+		return fmt.Errorf("failed to set cache: %w", err)
+	}
+	
+	return nil
+}
+
+// Delete 删除键
+func (r *RawRedisCache) Delete(ctx context.Context, key string) error {
+	fullKey := r.getKey(key)
+	
+	if err := r.client.Del(ctx, fullKey).Err(); err != nil {
+		return fmt.Errorf("failed to delete cache: %w", err)
+	}
+	
+	return nil
+}
+
+// Clean 清除所有缓存
+func (r *RawRedisCache) Clean(ctx context.Context) error {
+	pattern := r.getKey("*")
+	
+	script := `
+		local keys = redis.call('KEYS', ARGV[1])
+		if #keys > 0 then
+			return redis.call('DEL', unpack(keys))
+		end
+		return 0
+	`
+	
+	_, err := r.client.Eval(ctx, script, []string{}, pattern).Result()
+	if err != nil {
+		return fmt.Errorf("failed to clean cache: %w", err)
+	}
+	
+	return nil
+}
+
+// Exists 检查键是否存在
+func (r *RawRedisCache) Exists(ctx context.Context, key string) (bool, error) {
+	fullKey := r.getKey(key)
+	
+	count, err := r.client.Exists(ctx, fullKey).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check existence: %w", err)
+	}
+	
+	return count > 0, nil
+}
+
+// SetTTL 设置键的过期时间
+func (r *RawRedisCache) SetTTL(ctx context.Context, key string, ttl time.Duration) error {
+	fullKey := r.getKey(key)
+	
+	if err := r.client.Expire(ctx, fullKey, ttl).Err(); err != nil {
+		return fmt.Errorf("failed to set TTL: %w", err)
+	}
+	
+	return nil
+}
+
+
+
+
+
+

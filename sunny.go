@@ -11,6 +11,7 @@ import (
 	"github.com/hfup/sunny/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 )
 
 
@@ -34,7 +35,7 @@ type Sunny struct {
 	rolesAfterHandlers map[string][]ActionHandlerWithOrder // 角色后置处理器
 
 	subServices []types.SubServiceInf
-	redisClientManager databases.RedisClientManagerInf // redis 管理器
+	redisClient redis.UniversalClient // redis 客户端
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
 
 	// 同步执行的 RunAble
@@ -76,13 +77,25 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	}
 
 	// 初始化 redis
-	if s.config.RedisClientManager != nil{
-		if len(s.config.RedisClientManager.RedisConfigs) == 0{
-			logrus.Warn("redis client manager redis config is empty")
+	if s.config.Redis != nil{
+		if len(s.config.Redis.Addrs) == 0{
+			logrus.Warn("redis config is empty")
 		}else{
-			redisClientManager := databases.NewLocalRedisClientManager(s.config.RedisClientManager.RedisConfigs)
-			s.AddSubServices(redisClientManager)
-			s.redisClientManager = redisClientManager
+			if s.config.Redis.IsCluster{
+				redisClient,err := databases.RedisClusterConnect(s.config.Redis)
+				if err != nil{
+					logrus.Error("redis cluster connect error: ", err)
+					return err
+				}
+				s.redisClient = redisClient
+			}else{
+				redisClient,err := databases.RedisConnect(s.config.Redis)
+				if err != nil{
+					logrus.Error("redis connect error: ", err)
+					return err
+				}
+				s.redisClient = redisClient
+			}
 		}
 	}
 
@@ -258,6 +271,11 @@ func (s *Sunny) AddAsyncRunAbles(srvs ...types.RunAbleInf) error{
 func (s *Sunny) Start(ctx context.Context,args ...string) error{
 
 	return nil
+}
+
+// 获取 redis 客户端
+func (s *Sunny) GetRedisClient() redis.UniversalClient{
+	return s.redisClient
 }
 
 

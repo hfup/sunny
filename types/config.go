@@ -7,7 +7,7 @@ type Config struct {
 	WebRoutes []*WebRouterInfo  `yaml:"web_routes" json:"web_routes"` // 路由信息
 	Services  []*ServiceInfo    `yaml:"services" json:"services"`     // 服务信息
 	DatabaseClientManager *DatabaseClientManagerInfo `yaml:"database_client_manager" json:"database_client_manager"` // 数据库管理器配置
-	RedisClientManager *RedisClientManagerInfo `yaml:"redis_client_manager" json:"redis_client_manager"` // redis 管理器配置
+	Redis *RedisConfig `yaml:"redis" json:"redis"` // redis 配置
 }
 
 // 路由信息
@@ -40,11 +40,11 @@ type RedisConfig struct {
 	DbId      string `yaml:"db_id" json:"db_id"` // 数据库id 唯一
 }
 
-
+/***
 type RedisClientManagerInfo struct {
 	RedisConfigs []*RedisConfig `yaml:"redis_configs" json:"redis_configs"` // redis 配置
 	IsDebug int8 `yaml:"is_debug,omitempty" json:"is_debug,omitempty"` // 1 打印日志 0 不打印日志
-}
+}**/
 
 
 // 数据库信息
