@@ -471,3 +471,21 @@ func (s *Sunny) GetRedisClient() redis.UniversalClient{
 }
 
 
+// 设置 grpc 拦截器
+// 参数：
+//  - handler 拦截器
+// 返回：
+//  - 错误
+func (s *Sunny) SetGrpcInterceptorHandler(handler grpc.UnaryServerInterceptor) {
+	s.grpcServerInterceptorHandler = handler
+}
+
+// 绑定 grpc 服务
+// 参数：
+//  - services 服务
+// 返回：
+//  - 错误
+func (s *Sunny) BindGrpcServices(services ...types.RegisterGrpcServiceInf) {
+	s.grpcServices = append(s.grpcServices, services...)
+}
+
