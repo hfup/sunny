@@ -28,6 +28,7 @@ type SubServiceInf interface {
 // 可运行接口  
 type RunAbleInf interface {
 	Run(ctx context.Context,args any) error
+	Description() string // 描述
 }
 
 // 注册 grpc 服务接口

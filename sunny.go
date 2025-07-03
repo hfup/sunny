@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
+	"errors"
 
 	"github.com/hfup/sunny/utils"
 	"github.com/sirupsen/logrus"
@@ -13,6 +15,28 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
+	
+var (
+	sunnyShared *Sunny
+	onceInitSunnyShared sync.Once
+)
+
+func GetApp() *Sunny{
+	if sunnyShared == nil {
+		onceInitSunnyShared.Do(func() {
+			sunnyShared = &Sunny{
+				Engine: gin.Default(),
+				roles: make(map[string]RoleInf),
+				groups: make(map[string]GroupInf),
+				pathRoles: make(map[string]string),
+				multiRoleHandlers: make(map[string]MultiRoleHandler),
+				rolesBeforeHandlers: make(map[string][]ActionHandlerWithOrder),
+				rolesAfterHandlers: make(map[string][]ActionHandlerWithOrder),
+			}
+		})
+	}
+	return sunnyShared
+}
 
 
 type MultiRoleHandler func(groupLabel, actionLabel string) string
@@ -41,8 +65,9 @@ type Sunny struct {
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
 	asyncRunAbles []types.RunAbleInf
-	requiredSubSrvSuccessCount int // 必须成功启动的子服务数量
-	currentSubSrvSuccessCount int // 当前成功启动的子服务数量
+	subSrvSuccessCount int // 启动成功子服务数量
+	subSrvCount int // 子服务数量
+	errSrvCount int // 启动失败子服务数量
 }
 
 // 初始化
@@ -233,10 +258,8 @@ func (r *Sunny) initWebRoutes(routes []*types.WebRouterInfo){
 //  - 错误	
 func (s *Sunny) AddSubServices(srvs ...types.SubServiceInf) error{
 	for _,srv := range srvs{
-		if srv.IsErrorStop(){
-			s.requiredSubSrvSuccessCount += 1
-		}
 		s.subServices = append(s.subServices,srv)
+		s.subSrvCount += 1
 	}
 	return nil
 }
@@ -265,13 +288,86 @@ func (s *Sunny) AddAsyncRunAbles(srvs ...types.RunAbleInf) error{
 // Start 启动 Sunny
 // 参数：
 //  - ctx 上下文
-//  - args 参数
+//  - args 参数 0 是 配置文件路径 1 是 激活环境
 // 返回：
 //  - 错误
 func (s *Sunny) Start(ctx context.Context,args ...string) error{
+	configPath:=""
+	activeEnv:=""
+	if len(args) > 0 {
+		configPath = args[0]
+	}
+	if len(args) > 1 {
+		activeEnv = args[1]
+	}
+	err := s.Init(configPath,activeEnv) // 初始化
+	if err != nil{
+		return err
+	}
+
+	// 启动子服务
+	if len(s.subServices) > 0 {
+		for _,srv := range s.subServices{
+			resultChan := make(chan types.Result[any])
+			go srv.Start(ctx,s,resultChan)
+			result := <-resultChan // 等待子服务启动完成
+			if result.ErrCode != 0 {
+				logrus.WithFields(logrus.Fields{
+					"service_name": srv.ServiceName(),
+					"err_code": result.ErrCode,
+					"err_message": result.Message,
+				}).Error("sub service start error")
+				s.errSrvCount += 1
+				if srv.IsErrorStop(){
+					return errors.New(result.Message)
+				}
+			}else{
+				logrus.WithFields(logrus.Fields{
+					"service_name": srv.ServiceName(),
+					"message": result.Message,
+				}).Info("sub service start success")
+				s.subSrvSuccessCount += 1
+			}
+		}
+	}
+
+	// 需要同步执行的 runAble
+	if len(s.syncRunAbles) > 0 {
+		for _,runAble := range s.syncRunAbles{
+			err=runAble.Run(ctx,s)
+			if err != nil{
+				logrus.WithFields(logrus.Fields{
+					"err_message": err.Error(),
+					"tip":runAble.Description(),
+				}).Error("sync run able run error")
+				return err
+			}
+		}
+	}
+
+	// 需要异步执行的 runAble
+	if len(s.asyncRunAbles) > 0 {
+		for _,runAble := range s.asyncRunAbles{
+			go func (app *Sunny)  {
+				err=runAble.Run(ctx,app)
+				if err != nil{
+					logrus.WithFields(logrus.Fields{
+						"err_message": err.Error(),
+						"tip":runAble.Description(),
+					}).Error("async run able run error")
+				}
+			}(s)
+		}
+	}
+
+
+	// 开启服务
+
+
 
 	return nil
 }
+
 
 // 获取 redis 客户端
 func (s *Sunny) GetRedisClient() redis.UniversalClient{
