@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/hfup/sunny/components/databases"
 	"github.com/hfup/sunny/types"
+	"github.com/hfup/sunny/components/mqs"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -78,6 +79,11 @@ type Sunny struct {
 
 	grpcServices             []types.RegisterGrpcServiceInf
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
+
+	mqsManager mqs.MqManagerInf // mq 管理器
+	topics []mqs.TopicInf // 主题
+	producers []mqs.ProducerInf // 生产者
+	consumers []mqs.ConsumerInf // 消费者
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -150,9 +156,41 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 			s.databaseClientManager = databaseClientManager
 	}
 
+	// 初始化mq
+	if s.config.Mq != nil{
+		// 默认 失败 放内存
+		failedStore := mqs.NewMemoryFailedMessageStore()
+		switch s.config.Mq.Type {
+		case "rabbitmq":
+			url := fmt.Sprintf("amqp://%s:%s@%s:%d/",s.config.Mq.RabbitMQ.Username,s.config.Mq.RabbitMQ.Password,s.config.Mq.RabbitMQ.Host,s.config.Mq.RabbitMQ.Port)
+			s.mqsManager = mqs.NewRabbitMqManager(&mqs.RabbitMQOptions{
+				URL: url,
+				ChannelPoolSize: s.config.Mq.RabbitMQ.ChannelPoolSize,
+				MaxRetries: s.config.Mq.RabbitMQ.MaxRetries,
+				RetryInterval: time.Duration(s.config.Mq.RabbitMQ.RetryInterval) * time.Second, // 重试间隔
+				ReconnectDelay: time.Duration(s.config.Mq.RabbitMQ.ReconnectDelay) * time.Second, // 重连延迟
+			},failedStore)
+
+			s.AddSubServices(s.mqsManager)
+		case "kafka":
+			s.mqsManager = mqs.NewKafkaManager(&mqs.KafkaOptions{
+				Brokers: s.config.Mq.Kafka.Brokers,
+				MaxRetries: s.config.Mq.Kafka.MaxRetries,
+				RetryInterval: time.Duration(s.config.Mq.Kafka.RetryInterval) * time.Second, // 重试间隔
+				ReconnectDelay: time.Duration(s.config.Mq.Kafka.ReconnectDelay) * time.Second, // 重连延迟
+				SecurityProtocol: s.config.Mq.Kafka.SecurityProtocol,
+			},failedStore)
+			s.AddSubServices(s.mqsManager)
+		default:
+			logrus.Warn("mq config type not support")
+		}
+	}
+
 
 	return nil
 }
+
+
 
 
 
@@ -322,6 +360,12 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 		return err
 	}
 
+	// 绑定主题 生产者 消费者 
+	if s.mqsManager != nil{
+		s.mqsManager.BindTopic(s.topics...)
+		s.mqsManager.BindProducer(s.producers...)
+		s.mqsManager.BindConsumer(s.consumers...)
+	}
 
 	cldCtx, cldCancel := context.WithCancel(ctx) // 创建一个上下文 用于取消
 	defer cldCancel()
@@ -489,3 +533,14 @@ func (s *Sunny) BindGrpcServices(services ...types.RegisterGrpcServiceInf) {
 	s.grpcServices = append(s.grpcServices, services...)
 }
 
+func (s *Sunny) AddTopics(topics ...mqs.TopicInf) {
+	s.topics = append(s.topics, topics...)
+}
+
+func (s *Sunny) AddProducers(producers ...mqs.ProducerInf) {
+	s.producers = append(s.producers, producers...)
+}
+
+func (s *Sunny) AddConsumers(consumers ...mqs.ConsumerInf) {
+	s.consumers = append(s.consumers, consumers...)
+}

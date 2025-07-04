@@ -171,6 +171,6 @@ func (d *LocalDatabaseClientManager) IsErrorStop() bool {
 }
 
 func (d *LocalDatabaseClientManager) ServiceName() string {
-	return  "local database manager service"
+	return  "local database 客户端管理器"
 }
 

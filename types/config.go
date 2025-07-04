@@ -8,6 +8,7 @@ type Config struct {
 	Services  []*ServiceInfo    `yaml:"services" json:"services"`     // 服务信息
 	DatabaseClientManager *DatabaseClientManagerInfo `yaml:"database_client_manager" json:"database_client_manager"` // 数据库管理器配置
 	Redis *RedisConfig `yaml:"redis" json:"redis"` // redis 配置
+	Mq *MqConfig `yaml:"mq" json:"mq"` // mq 配置
 }
 
 // 路由信息
@@ -72,4 +73,34 @@ type DatabaseClientManagerInfo struct {
 	//IsLocal int8 `yaml:"is_local" json:"is_local"` // 1 从本地配置获取 0 从远程服务器服务拉取配置
 	IsDebug int8 `yaml:"is_debug,omitempty" json:"is_debug,omitempty"` // 1 打印日志 0 不打印日志
 	DBs []*DBConfig `yaml:"dbs,omitempty" json:"dbs,omitempty"` // 数据库配置
+}
+
+
+type MqConfig struct {
+	Type string `yaml:"type" json:"type"` // rabbitmq, kafka
+	RabbitMQ *RabbitMQConfig `yaml:"rabbitmq" json:"rabbitmq"` // rabbitmq 配置
+	Kafka *KafkaConfig `yaml:"kafka" json:"kafka"` // kafka 配置
+}
+
+
+type RabbitMQConfig struct {
+	Host string `yaml:"host" json:"host"` // 连接地址
+	Port int `yaml:"port" json:"port"` // 连接端口
+	Username string `yaml:"username" json:"username"` // 用户名
+	Password string `yaml:"password" json:"password"` // 密码
+	MaxRetries int `yaml:"max_retries" json:"max_retries"` // 最大重试次数
+	RetryInterval int `yaml:"retry_interval" json:"retry_interval"` // 重试间隔
+	ReconnectDelay int `yaml:"reconnect_delay" json:"reconnect_delay"` // 重连延迟
+	ChannelPoolSize int `yaml:"channel_pool_size" json:"channel_pool_size"` // 连接池大小
+}
+
+type KafkaConfig struct {
+	Brokers []string `yaml:"brokers" json:"brokers"` // 连接地址
+	MaxRetries int `yaml:"max_retries" json:"max_retries"` // 最大重试次数
+	RetryInterval int `yaml:"retry_interval" json:"retry_interval"` // 重试间隔
+	ReconnectDelay int `yaml:"reconnect_delay" json:"reconnect_delay"` // 重连延迟
+	SecurityProtocol string `yaml:"security_protocol" json:"security_protocol"` // 安全协议
+	SASLMechanism string `yaml:"sasl_mechanism" json:"sasl_mechanism"` // SASL 机制
+	SASLUsername string `yaml:"sasl_username" json:"sasl_username"` // SASL 用户名
+	SASLPassword string `yaml:"sasl_password" json:"sasl_password"` // SASL 密码
 }

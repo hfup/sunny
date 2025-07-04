@@ -267,7 +267,7 @@ func (k *KafkaManager) IsErrorStop() bool {
 // 返回:
 //   - string 服务名称
 func (k *KafkaManager) ServiceName() string {
-	return "Kafka Manager"
+	return "Kafka 消息队列管理器"
 }
 
 // CreateConsumer 创建消费者

@@ -100,7 +100,7 @@ func (l *LocalRedisClientManager) IsErrorStop() bool {
 
 // ServiceName 返回服务名称
 func (l *LocalRedisClientManager) ServiceName() string {
-	return "LocalRedisClientManager"
+	return "local Redis 客户端管理器"
 }
 
 

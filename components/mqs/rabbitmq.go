@@ -374,7 +374,7 @@ func (r *RabbitMqManager) IsErrorStop() bool {
 // 返回:
 //   - string 服务名称
 func (r *RabbitMqManager) ServiceName() string {
-	return "RabbitMQ Manager"
+	return "RabbitMQ 消息队列管理器"
 }
 
 // CreateConsumer 创建消费者
