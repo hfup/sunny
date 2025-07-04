@@ -30,6 +30,7 @@ type TaskManagerInf interface {
 	GetTaskCount() int
 	PauseTask(taskId string) error   // 暂停任务
 	ResumeTask(taskId string) error // 恢复任务
+	BindTaskInitHandler(taskInitHandler TaskInitHandler) error // 绑定任务初始化处理函数
 }
 
 // TaskInitHandler 任务初始化处理函数
@@ -45,15 +46,17 @@ type TaskWrapper struct {
 }
 
 type TaskManger struct {
+	interval time.Duration // 任务执行间隔
 	types.SubServiceInf
-	taskInitHandler TaskInitHandler
+	taskInitHandler TaskInitHandler // 任务初始化处理函数 从持久化层中获取任务 重启服务的时候
 	taskMap map[string]*TaskWrapper
 	taskLock sync.RWMutex
 }
 
-func NewTaskManger(taskInitHandler TaskInitHandler) *TaskManger {
+func NewTaskManger(interval time.Duration,taskInitHandler TaskInitHandler) *TaskManger {
 	return &TaskManger{
 		taskInitHandler: taskInitHandler,
+		interval: interval,
 	}
 }
 
@@ -162,29 +165,33 @@ func (t *TaskManger) ResumeTask(taskId string) error {
 
 // 启动任务
 func (t *TaskManger) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
-	taskList, err := t.taskInitHandler(ctx)
-	if err != nil {
-		logrus.Errorf("task init error: %v", err)
-		resultChan <- types.Result[any]{
-			ErrCode: 1,
-			Message: "task manager start error;task init error: " + err.Error(),
-		}
-		return 
-	}
-
-	for _, task := range taskList {
-		err = t.AddTask(task)
+	if t.taskInitHandler != nil {
+		taskList, err := t.taskInitHandler(ctx) // 初始化任务 
 		if err != nil {
-			logrus.Errorf("task add error: %v", err)
+			logrus.Errorf("task init error: %v", err)
 			resultChan <- types.Result[any]{
 				ErrCode: 1,
-				Message: "task manager start error;task add error: " + err.Error(),
+				Message: "task manager start error;task init error: " + err.Error(),
 			}
 			return 
 		}
+		for _, task := range taskList {
+			err = t.AddTask(task)
+			if err != nil {
+				logrus.Errorf("task add error: %v", err)
+				resultChan <- types.Result[any]{
+					ErrCode: 1,
+					Message: "task manager start error;task add error: " + err.Error(),
+				}
+				return 
+			}
+		}
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	if t.interval == 0 {
+		t.interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(t.interval)
 	defer ticker.Stop()
 
 	resultChan <- types.Result[any]{
@@ -232,5 +239,18 @@ func (t *TaskManger) IsErrorStop() bool {
 }
 
 func (t *TaskManger) ServiceName() string {
-	return "task_manger"
+	return "Task任务管理器"
+}
+
+// 绑定任务初始化处理函数
+// 参数:
+//   - taskInitHandler: 任务初始化处理函数
+// 返回:
+//   - error 错误信息
+func (t *TaskManger) BindTaskInitHandler(taskInitHandler TaskInitHandler) error {
+	if taskInitHandler == nil {
+		return errors.New("task init handler is nil")
+	}
+	t.taskInitHandler = taskInitHandler
+	return nil
 }

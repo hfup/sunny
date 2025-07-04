@@ -75,6 +75,8 @@ type MqManagerInf interface {
 	// 重连相关
 	IsConnected() bool // 检查连接状态
 	Reconnect() error  // 手动重连
+
+	SetFailedMessageStore(failedMessageStore FailedMessageStore) error
 }
 
 

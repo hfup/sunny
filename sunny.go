@@ -2,28 +2,29 @@ package sunny
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"sync"
-	"errors"
 
+	"github.com/hfup/sunny/components/auths"
+	"github.com/hfup/sunny/components/databases"
+	"github.com/hfup/sunny/components/mqs"
+	"github.com/hfup/sunny/types"
 	"github.com/hfup/sunny/utils"
 	"github.com/sirupsen/logrus"
-	"github.com/hfup/sunny/components/databases"
-	"github.com/hfup/sunny/types"
-	"github.com/hfup/sunny/components/mqs"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 
 	"google.golang.org/grpc"
 
-	"net"
 	"fmt"
-	"time"
-	"syscall"
-	"os/signal"
+	"net"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 )
 	
 var (
@@ -84,6 +85,9 @@ type Sunny struct {
 	topics []mqs.TopicInf // 主题
 	producers []mqs.ProducerInf // 生产者
 	consumers []mqs.ConsumerInf // 消费者
+
+
+	jwtKeyManager *auths.JwtKeyManager // jwt key 管理器
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -543,4 +547,15 @@ func (s *Sunny) AddProducers(producers ...mqs.ProducerInf) {
 
 func (s *Sunny) AddConsumers(consumers ...mqs.ConsumerInf) {
 	s.consumers = append(s.consumers, consumers...)
+}
+
+
+// 设置 jwt key 管理器
+// 参数：
+//  - jwtKeyManager jwt key 管理器
+// 返回：
+//  - 错误
+func (s *Sunny) SetJwtKeyManager(jwtKeyManager *auths.JwtKeyManager) {
+	s.jwtKeyManager = jwtKeyManager
+	s.AddSubServices(jwtKeyManager)
 }

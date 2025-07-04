@@ -558,6 +558,16 @@ func (r *RabbitMqManager) Close() error {
 	return nil
 }
 
+// SetFailedMessageStore 设置失败消息存储
+// 参数:
+//   - failedMessageStore: FailedMessageStore 失败消息存储
+// 返回:
+//   - error 错误信息
+func (r *RabbitMqManager) SetFailedMessageStore(failedMessageStore FailedMessageStore) error {
+	r.failedStore = failedMessageStore
+	return nil
+}
+
 // IsConnected 检查连接状态
 // 返回:
 //   - bool 连接状态

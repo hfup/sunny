@@ -467,6 +467,18 @@ func (k *KafkaManager) Reconnect() error {
 	return k.connect()
 }
 
+
+// SetFailedMessageStore 设置失败消息存储
+// 参数:
+//   - failedMessageStore: FailedMessageStore 失败消息存储
+// 返回:
+//   - error 错误信息
+func (k *KafkaManager) SetFailedMessageStore(failedMessageStore FailedMessageStore) error {
+	k.failedStore = failedMessageStore
+	return nil
+}
+
+
 // startReconnectMonitor 启动重连监控
 func (k *KafkaManager) startReconnectMonitor() {
 	k.reconnectTicker = time.NewTicker(k.options.ReconnectDelay)

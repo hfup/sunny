@@ -22,14 +22,14 @@ type JwtSignerResult struct {
 
 
 type Jwt struct {
-	keyChain        [][]byte
+	keyChain [][]byte // 
 	currentKeyIndex int
-	chainCapacity int // chain  
 }
 
-func NewJwt(chainCapacity int) *Jwt {
+func NewJwt() *Jwt {
 	return &Jwt{
-		chainCapacity:   chainCapacity,
+		keyChain: make([][]byte,0),
+		currentKeyIndex: 0,
 	}
 }
 
@@ -62,6 +62,7 @@ func (j *Jwt) GenerateSignature(data map[string]any) (*JwtSignerResult, error) {
 	}, nil
 }
 
+
 // sortMapToString 将 map 按字典序排序并转换为字符串
 // 参数:
 //   - data: map[string]any 要排序的数据
@@ -92,38 +93,44 @@ func (j *Jwt) sortMapToString(data map[string]any) (string, error) {
 }
 
 
-// SetKeyChain 设置密钥链
+// Reset 重置密钥链
 // 参数:
 //   - keyChain: 密钥链
-func (j *Jwt) SetKeyChain(keyChain [][]byte) {
+//   - currentKeyIndex: 当前密钥索引
+// 返回:
+//   - error 错误信息
+func (j *Jwt) Reset(keyChain [][]byte,currentKeyIndex int) error{
+	if currentKeyIndex > len(keyChain) - 1  {
+		return errors.New("currentKeyIndex out of range")
+	}
 	j.keyChain = keyChain
-}
-
-// SetCurrentKeyIndex 设置当前密钥索引
-// 参数:
-//   - index: 当前密钥索引
-func (j *Jwt) SetCurrentKeyIndexAndKey(index int, key []byte) error{
-	if index < 0 || index >= j.chainCapacity {
-		return errors.New("index out of range")
-	}
-	
-	// 初始化 keyChain 如果为空
-	if j.keyChain == nil {
-		j.keyChain = make([][]byte, j.chainCapacity)
-	}
-	
-	// 确保 keyChain 长度足够
-	if len(j.keyChain) < j.chainCapacity {
-		newChain := make([][]byte, j.chainCapacity)
-		copy(newChain, j.keyChain)
-		j.keyChain = newChain
-	}
-	
-	j.currentKeyIndex = index
-	j.keyChain[index] = key
-
+	j.currentKeyIndex = currentKeyIndex
 	return nil
 }
+
+
+// AddNewKey 添加新密钥
+// 如果 index 大于 当前密钥链长度,则直接添加到末尾
+// 如果 index 小于 当前密钥链长度,则替换当前索引的密钥
+// 参数:
+//   - key: 新密钥
+//   - index: 新密钥索引
+// 返回:
+//   - error 错误信息
+func (j *Jwt) AddNewKey(key []byte,index int) error{
+	if index < 0 {
+		return errors.New("index out of range")
+	}
+	if index >= len(j.keyChain) {
+		j.keyChain = append(j.keyChain, key)
+	}else{
+		j.keyChain[index] = key
+	}
+	j.currentKeyIndex = index
+	return nil
+}
+
+
 
 // GetKey 获取密钥
 // 参数:
@@ -132,7 +139,7 @@ func (j *Jwt) SetCurrentKeyIndexAndKey(index int, key []byte) error{
 //   - []byte 密钥
 //   - error 错误信息
 func (j *Jwt) GetKey(index int) ([]byte, error) {
-	if index < 0 || index >= j.chainCapacity {
+	if index < 0 || index >= len(j.keyChain) {
 		return nil, errors.New("index out of range")
 	}
 	key := j.keyChain[index]
@@ -162,9 +169,11 @@ type JwtKeyManager struct {
 // 返回:
 //   - error 错误信息
 // 注意: 这个函数执行的时候 如果要通知其他服务,保证其他服务已启动, 建议使用 消息队列 通知其他服务
+// 新生成的key 应该要持久化到 数据库中, 并设置到 密钥管理器中,重启的时候重新加载
 type KeyUpdateHandler func(ctx context.Context,key []byte,curIndex int) error
 
 // KeyInitHandler 密钥初始化处理函数
+// 当服务服务器重启的时候,应该要从 持久化的密钥 中获取 密钥信息, 并设置到 密钥管理器中
 // 参数:
 //   - ctx: 上下文
 // 返回:
@@ -194,7 +203,7 @@ func NewJwtKeyManager(chainCapacity int,keyUpdatePeriod time.Duration,keyInitHan
 
 func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
 	// 初始化密钥
-	keyList,index,err := j.keyInitHandler(ctx) // 这里的返回的排序 asc
+	keyList,index,err := j.keyInitHandler(ctx) // 这里的返回的排序 asc 
 	if err != nil {
 		resultChan <- types.Result[any]	{
 			ErrCode: 1,
