@@ -256,22 +256,6 @@ GET http://localhost:8080/api/user/info
 - `message`: 响应消息
 - `data`: 响应数据（可选）
 
-## 项目结构建议
-
-```
-your-project/
-├── main.go                 # 入口文件
-├── resources/              # 配置文件目录
-│   ├── application.yaml
-│   ├── application-dev.yaml
-│   └── application-prod.yaml
-├── handlers/               # 业务处理器
-│   ├── user/
-│   └── product/
-├── models/                 # 数据模型
-├── services/              # 业务服务层
-└── middlewares/           # 中间件
-```
 
 ## 最佳实践
 
