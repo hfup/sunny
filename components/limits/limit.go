@@ -30,6 +30,12 @@ type UniLimiterLocker struct {
 	muMap sync.Map // key -> *sync.Mutex
 }
 
+func NewUniLimiterLocker() *UniLimiterLocker {
+	return &UniLimiterLocker{
+		muMap: sync.Map{},
+	}
+}
+
 
 func (l *UniLimiterLocker) getMutex(key string) (*sync.Mutex,bool){
     m, ok := l.muMap.LoadOrStore(key,&sync.Mutex{})

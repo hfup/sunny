@@ -576,7 +576,12 @@ func (s *Sunny) UseMultiRoleHandler(path string,handler MultiRoleHandler) {
 	s.multiRoleHandlers[path] = handler
 }
 
-func (s *Sunny) AddRoles(roles ...RoleInf) {
+// 使用角色
+// 参数：
+//  - roles 角色
+// 返回：
+//  - 错误
+func (s *Sunny) UseRoles(roles ...RoleInf) {
 	for _,role := range roles{
 		if _,ok := s.roles[role.RoleLabel()];ok{
 			panic("role label already exists")
@@ -585,3 +590,34 @@ func (s *Sunny) AddRoles(roles ...RoleInf) {
 	}
 }
 
+// 使用组
+// 参数：
+//  - groups 组
+// 返回：
+//  - 错误
+func (s *Sunny) UseGroups(groups ...GroupInf) {
+	for _,group := range groups{
+		key:=group.RoleLabel() + group.GroupLabel()
+		if _,ok := s.groups[key];ok{
+			panic("group label already exists")
+		}
+		s.groups[group.GroupLabel()] = group
+	}
+}
+
+// 获取 grpc 客户端
+// 参数：
+//  - grpcSrvMark 服务标记
+// 返回：
+//  - grpc 客户端
+//  - 错误
+func (s *Sunny) GetGrpcClient(grpcSrvMark string) (grpc.ClientConnInterface,error){
+	return  nil,errors.New("not implemented")
+}
+
+// 获取环境配置参数
+// 参数:
+// - key 
+func (s *Sunny) GetEnvArgs(key string) (string,bool) {
+	return "",false
+}
