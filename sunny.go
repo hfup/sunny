@@ -195,9 +195,6 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 }
 
 
-
-
-
 // 加载配置文件
 func (s *Sunny) loadConfig() error{
 	configer := &types.Config{}
@@ -559,3 +556,32 @@ func (s *Sunny) SetJwtKeyManager(jwtKeyManager *auths.JwtKeyManager) {
 	s.jwtKeyManager = jwtKeyManager
 	s.AddSubServices(jwtKeyManager)
 }
+
+
+func (s *Sunny) AddRoleBeforeHandler(roleLabel string,order int,handler ActionHandlerFunc) {
+	s.rolesBeforeHandlers[roleLabel] = append(s.rolesBeforeHandlers[roleLabel],ActionHandlerWithOrder{
+		Order: order,
+		ActionHandlerFunc: handler,
+	})
+}
+
+func (s *Sunny) AddRoleAfterHandler(roleLabel string,order int,handler ActionHandlerFunc) {
+	s.rolesAfterHandlers[roleLabel] = append(s.rolesAfterHandlers[roleLabel],ActionHandlerWithOrder{
+		Order: order,
+		ActionHandlerFunc: handler,
+	})
+}
+
+func (s *Sunny) UseMultiRoleHandler(path string,handler MultiRoleHandler) {
+	s.multiRoleHandlers[path] = handler
+}
+
+func (s *Sunny) AddRoles(roles ...RoleInf) {
+	for _,role := range roles{
+		if _,ok := s.roles[role.RoleLabel()];ok{
+			panic("role label already exists")
+		}
+		s.roles[role.RoleLabel()] = role
+	}
+}
+
