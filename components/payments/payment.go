@@ -37,7 +37,7 @@ type PaymentInf interface {
 	Refund(option RefundOptionInf) error
 }
 
-
+// 支付管理
 type PaymentMangerInf interface {
 	AddPayment(payment PaymentInf) error
 	GetPayment(paymentType string) PaymentInf
