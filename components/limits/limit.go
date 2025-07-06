@@ -24,8 +24,15 @@ var (
 	ErrLockBusy = errors.New("lock busy")
 )
 
+// mutexRef 带引用计数的互斥锁
+type mutexRef struct {
+	mu       *sync.Mutex
+	refCount int32
+}
+
 type UniLimiterLocker struct {
-	muMap sync.Map // key -> *sync.Mutex
+	muMap sync.Map   // key -> *mutexRef
+	mux   sync.Mutex // 保护引用计数操作
 }
 
 func NewUniLimiterLocker() *UniLimiterLocker {
@@ -34,9 +41,46 @@ func NewUniLimiterLocker() *UniLimiterLocker {
 	}
 }
 
+// getMutex 获取互斥锁并增加引用计数
+// 参数:
+//   - key: 锁的key
+//
+// 返回:
+//   - *sync.Mutex 互斥锁
+//   - bool 是否已存在（true表示已存在，false表示新创建）
 func (l *UniLimiterLocker) getMutex(key string) (*sync.Mutex, bool) {
-	m, ok := l.muMap.LoadOrStore(key, &sync.Mutex{})
-	return m.(*sync.Mutex), ok
+	l.mux.Lock()
+	defer l.mux.Unlock()
+
+	if val, ok := l.muMap.Load(key); ok {
+		ref := val.(*mutexRef)
+		ref.refCount++
+		return ref.mu, true
+	}
+
+	// 创建新的互斥锁
+	ref := &mutexRef{
+		mu:       &sync.Mutex{},
+		refCount: 1,
+	}
+	l.muMap.Store(key, ref)
+	return ref.mu, false
+}
+
+// releaseMutex 释放互斥锁并减少引用计数
+// 参数:
+//   - key: 锁的key
+func (l *UniLimiterLocker) releaseMutex(key string) {
+	l.mux.Lock()
+	defer l.mux.Unlock()
+
+	if val, ok := l.muMap.Load(key); ok {
+		ref := val.(*mutexRef)
+		ref.refCount--
+		if ref.refCount <= 0 {
+			l.muMap.Delete(key)
+		}
+	}
 }
 
 // 用来执行函数，如果锁被占用，则返回错误
@@ -48,14 +92,17 @@ func (l *UniLimiterLocker) getMutex(key string) (*sync.Mutex, bool) {
 // 返回：
 //   - 错误
 func (l *UniLimiterLocker) DoWithTryLock(ctx context.Context, key string, fn func() error) error {
-	mu, ok := l.getMutex(key)
-	if ok {
+	mu, _ := l.getMutex(key)
+
+	// 尝试获取锁，如果获取失败则立即返回错误
+	if !mu.TryLock() {
+		l.releaseMutex(key) // 减少引用计数
 		return ErrLockBusy
 	}
-	mu.Lock()
+
 	defer func() {
 		mu.Unlock()
-		l.Release(key)
+		l.releaseMutex(key)
 	}()
 
 	err := fn()
@@ -78,17 +125,13 @@ func (l *UniLimiterLocker) DoWithWaitLock(ctx context.Context, key string, fn fu
 	mu.Lock()
 	defer func() {
 		mu.Unlock()
-		l.Release(key)
+		l.releaseMutex(key)
 	}()
 	err := fn()
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (l *UniLimiterLocker) Release(key string) {
-	l.muMap.Delete(key)
 }
 
 // RedisLimiterLocker Redis分布式锁实现
