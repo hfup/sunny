@@ -622,6 +622,31 @@ func (s *Sunny) GetEnvArgs(key string) (string,bool) {
 	return "",false
 }
 
+// 获取 mq 管理器
+// 返回：
+//  - mq 管理器
+func (s *Sunny) GetMqManager() mqs.MqManagerInf {
+	return s.mqsManager
+}
+
+// 绑定消费者
+// 参数：
+//  - consumers 消费者
+// 返回：
+//  - 错误
+func (s *Sunny) BindConsumer(consumers ...mqs.ConsumerInf) {
+	s.consumers = append(s.consumers, consumers...)
+}
+
+// 绑定生产者
+// 参数：
+//  - producers 生产者
+// 返回：
+//  - 错误
+func (s *Sunny) BindProducer(producers ...mqs.ProducerInf) {
+	s.producers = append(s.producers, producers...)
+}
+
 
 
 
