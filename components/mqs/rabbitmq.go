@@ -381,25 +381,37 @@ func (r *RabbitMqManager) ServiceName() string {
 // 参数:
 //   - topic: string 主题
 //   - queue: string 队列
-//   - opt: any 配置选项
+//   - opt: any 配置选项 
 // 返回:
 //   - ConsumerInf 消费者接口
 //   - error 错误信息
 func (r *RabbitMqManager) CreateConsumer(topic, queue string, opt any) (ConsumerInf, error) {
-	options, ok := opt.(*RabbitMQConsumerOptions)
-	if !ok {
-		return nil, fmt.Errorf("配置选项类型错误，期望 *RabbitMQConsumerOptions")
+	// 根据配置选项类型进行处理
+	switch v := opt.(type) {
+	case bool:
+		// 使用 bool 类型创建默认配置
+		options := DefaultRabbitMQConsumerOptions(v)
+		consumer := &RabbitMQConsumer{
+			topic:   topic,
+			queue:   queue,
+			options: options,
+			manager: r,
+			done:    make(chan error),
+		}
+		return consumer, nil
+	case *RabbitMQConsumerOptions:
+		// 使用自定义配置
+		consumer := &RabbitMQConsumer{
+			topic:   topic,
+			queue:   queue,
+			options: v,
+			manager: r,
+			done:    make(chan error),
+		}
+		return consumer, nil
+	default:
+		return nil, fmt.Errorf("配置选项类型错误，期望 bool 或 *RabbitMQConsumerOptions")
 	}
-	
-	consumer := &RabbitMQConsumer{
-		topic:   topic,
-		queue:   queue,
-		options: options,
-		manager: r,
-		done:    make(chan error),
-	}
-	
-	return consumer, nil
 }
 
 // CreateProducer 创建生产者
