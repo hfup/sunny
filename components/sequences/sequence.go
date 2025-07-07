@@ -1,6 +1,6 @@
 package sequences
 
 // 自增id 生成器
-type SequenceInterface interface {
+type SequenceInf interface {
 	Next() (string, error)
 }

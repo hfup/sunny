@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/hfup/sunny/components/databases"
 )
 
 // 基于Redis的id生成器
@@ -20,27 +19,21 @@ type RedisSequence struct {
 
 // NewRedisSequence 创建新的Redis序列号生成器
 // 参数:
-//   - clientManager: Redis客户端管理器
-//   - dbKey: 数据库标识
+//   - client: Redis客户端
 //   - key: Redis中存储计数器的key
 //   - strLen: 生成字符串的长度
 //
 // 返回:
 //   - *RedisSequence: Redis序列号生成器实例
 //   - error: 错误信息
-func NewRedisSequence(clientManager databases.RedisClientManagerInf, dbKey, key string, strLen int) (*RedisSequence, error) {
-	client, err := clientManager.GetClientFromKey(dbKey)
-	if err != nil {
-		return nil, fmt.Errorf("获取Redis客户端失败: %w", err)
-	}
-
+func NewRedisSequence(client redis.UniversalClient, key string, strLen int) *RedisSequence {
 	maxValue := int64(math.Pow10(strLen) - 1)
 	return &RedisSequence{
 		client:   client,
 		key:      key,
 		strLen:   strLen,
 		maxValue: maxValue,
-	}, nil
+	}
 }
 
 // Next 生成下一个id
