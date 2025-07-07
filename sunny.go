@@ -82,9 +82,10 @@ type Sunny struct {
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
 
 	mqsManager mqs.MqManagerInf // mq 管理器
-	topics []mqs.TopicInf // 主题
-	producers []mqs.ProducerInf // 生产者
-	consumers []mqs.ConsumerInf // 消费者
+
+	consumerFactories []mqs.ConsumerFactory // 消费者工厂 要延迟处理
+	producerFactories []mqs.ProducerFactory // 生产者工厂 要延迟处理
+
 
 
 	jwtKeyManager *auths.JwtKeyManager // jwt key 管理器
@@ -363,9 +364,24 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 
 	// 绑定主题 生产者 消费者 
 	if s.mqsManager != nil{
-		s.mqsManager.BindTopic(s.topics...)
-		s.mqsManager.BindProducer(s.producers...)
-		s.mqsManager.BindConsumer(s.consumers...)
+		for _,factory := range s.consumerFactories{
+			consumer,err := factory(s.mqsManager)
+			if err != nil{
+				logrus.WithFields(logrus.Fields{
+					"err_message": err.Error(),
+				}).Error("consumer factory create error")
+			}
+			s.mqsManager.BindConsumer(consumer)
+		}
+		for _,factory := range s.producerFactories{
+			producer,err := factory(s.mqsManager)
+			if err != nil{
+				logrus.WithFields(logrus.Fields{
+					"err_message": err.Error(),
+				}).Error("producer factory create error")
+			}
+			s.mqsManager.BindProducer(producer)
+		}
 	}
 
 	cldCtx, cldCancel := context.WithCancel(ctx) // 创建一个上下文 用于取消
@@ -534,18 +550,6 @@ func (s *Sunny) BindGrpcServices(services ...types.RegisterGrpcServiceInf) {
 	s.grpcServices = append(s.grpcServices, services...)
 }
 
-func (s *Sunny) AddTopics(topics ...mqs.TopicInf) {
-	s.topics = append(s.topics, topics...)
-}
-
-func (s *Sunny) AddProducers(producers ...mqs.ProducerInf) {
-	s.producers = append(s.producers, producers...)
-}
-
-func (s *Sunny) AddConsumers(consumers ...mqs.ConsumerInf) {
-	s.consumers = append(s.consumers, consumers...)
-}
-
 
 // 设置 jwt key 管理器
 // 参数：
@@ -629,24 +633,33 @@ func (s *Sunny) GetMqManager() mqs.MqManagerInf {
 	return s.mqsManager
 }
 
-// 绑定消费者
-// 参数：
-//  - consumers 消费者
-// 返回：
-//  - 错误
-func (s *Sunny) BindConsumer(consumers ...mqs.ConsumerInf) {
-	s.consumers = append(s.consumers, consumers...)
-}
 
-// 绑定生产者
+// 绑定 mq 管理器
 // 参数：
-//  - producers 生产者
+//  - mqManager mq 管理器
 // 返回：
 //  - 错误
-func (s *Sunny) BindProducer(producers ...mqs.ProducerInf) {
-	s.producers = append(s.producers, producers...)
+func (s *Sunny) BindMqManager(mqManager mqs.MqManagerInf) {
+	s.mqsManager = mqManager
 }
 
 
+// 添加消费者工厂
+// 参数：
+//  - factory 消费者工厂
+// 返回：
+//  - 错误
+func (s *Sunny) AddConsumerFactory(factory mqs.ConsumerFactory) {
+	s.consumerFactories = append(s.consumerFactories, factory)
+}
+
+// 添加生产者工厂
+// 参数：
+//  - factory 生产者工厂
+// 返回：
+//  - 错误
+func (s *Sunny) AddProducerFactory(factory mqs.ProducerFactory) {
+	s.producerFactories = append(s.producerFactories, factory)
+}	
 
 

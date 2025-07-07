@@ -25,6 +25,12 @@ type QueuesInf interface {
 	Queues() string
 }
 
+// 消费者工厂
+type ConsumerFactory func(manager MqManagerInf) (ConsumerInf, error)
+
+// 生产者工厂
+type ProducerFactory func(manager MqManagerInf) (ProducerInf, error)
+
 
 type ConsumerHandlerFunc func(ctx context.Context, msg []byte) error
 
