@@ -1,11 +1,12 @@
 package payments
 
 
+// 支付参数接口
 type PayOptionInf interface {
 	GetOrderId() string // 订单id
-	PayFee() int64 // 支付金额 单位分
+	GetPayFee() int64 // 支付金额 单位分
 	GetPayUserId() string // 获取用户id
-	GetOption() any // 获取其他参数
+	GetCode() string
 }
 
 
@@ -35,6 +36,7 @@ type PaymentInf interface {
 	VerifyPay(opt any) (PayresultInf,error)
 	// 退款
 	Refund(option RefundOptionInf) error
+	Pay(option PayOptionInf,dest PayresultInf) error
 }
 
 // 支付管理
