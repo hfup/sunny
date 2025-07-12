@@ -7,28 +7,106 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/singleflight"
+	"google.golang.org/protobuf/proto"
 )
+
+// Serializer 序列化器接口
+type Serializer interface {
+	// Marshal 序列化数据
+	Marshal(v interface{}) ([]byte, error)
+
+	// Unmarshal 反序列化数据
+	Unmarshal(data []byte, v interface{}) error
+}
+
+// JSONSerializer JSON序列化器
+type JSONSerializer struct{}
+
+// Marshal JSON序列化
+func (j *JSONSerializer) Marshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// Unmarshal JSON反序列化
+func (j *JSONSerializer) Unmarshal(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
+}
+
+// ProtobufSerializer Protobuf序列化器
+type ProtobufSerializer struct{}
+
+// Marshal Protobuf序列化
+func (p *ProtobufSerializer) Marshal(v interface{}) ([]byte, error) {
+	if msg, ok := v.(proto.Message); ok {
+		return proto.Marshal(msg)
+	}
+	return nil, fmt.Errorf("value must implement proto.Message interface")
+}
+
+// Unmarshal Protobuf反序列化
+func (p *ProtobufSerializer) Unmarshal(data []byte, v interface{}) error {
+	if msg, ok := v.(proto.Message); ok {
+		return proto.Unmarshal(data, msg)
+	}
+	return fmt.Errorf("value must implement proto.Message interface")
+}
 
 // RedisCache Redis缓存实现
 type RedisCache[T any] struct {
-	client redis.UniversalClient
-	prefix string        // 前缀
-	ttl    time.Duration // 过期时间
+	client     redis.UniversalClient
+	prefix     string             // 前缀
+	ttl        time.Duration      // 过期时间
+	serializer Serializer         // 序列化器
+	group      singleflight.Group // 单飞机制，防止并发重复加载
+	loadFunc   LoadFunc[T]        // 加载数据函数
 }
 
 // NewRedisCache 创建新的Redis缓存实例
-func NewRedisCache[T any](client *redis.Client, prefix string, ttl time.Duration) *RedisCache[T] {
+// 参数:
+//   - client: *redis.Client Redis客户端
+//   - prefix: string 键前缀
+//   - ttl: time.Duration 过期时间
+//   - serializer: Serializer 序列化器
+//
+// 返回:
+//   - *RedisCache[T] Redis缓存实例
+func NewRedisCache[T any](client redis.UniversalClient, prefix string, ttl time.Duration, serializer Serializer, loadFunc LoadFunc[T]) *RedisCache[T] {
 	return &RedisCache[T]{
-		client: client,
-		prefix: prefix,
-		ttl:    ttl,
+		client:     client,
+		prefix:     prefix,
+		ttl:        ttl,
+		serializer: serializer,
+		group:      singleflight.Group{},
+		loadFunc:   loadFunc,
 	}
 }
 
-// NewRedisCacheWithOptions 使用选项创建Redis缓存实例
-func NewRedisCacheWithOptions[T any](options *redis.Options, prefix string, ttl time.Duration) *RedisCache[T] {
-	client := redis.NewClient(options)
-	return NewRedisCache[T](client, prefix, ttl)
+// NewRedisCacheWithJSON 创建使用JSON序列化的Redis缓存实例
+// 参数:
+//   - client: *redis.Client Redis客户端
+//   - prefix: string 键前缀
+//   - ttl: time.Duration 过期时间
+//   - loadFunc: LoadFunc[T] 加载数据函数
+//
+// 返回:
+//   - *RedisCache[T] Redis缓存实例
+func NewRedisCacheWithJSON[T any](client redis.UniversalClient, prefix string, ttl time.Duration, loadFunc LoadFunc[T]) *RedisCache[T] {
+	return NewRedisCache(client, prefix, ttl, &JSONSerializer{}, loadFunc)
+}
+
+// NewRedisCacheWithProtobuf 创建使用Protobuf序列化的Redis缓存实例
+// 参数:
+//   - client: *redis.Client Redis客户端
+//   - prefix: string 键前缀
+//   - ttl: time.Duration 过期时间
+//   - loadFunc: LoadFunc[T] 加载数据函数
+//
+// 返回:
+//   - *RedisCache[T] Redis缓存实例
+func NewRedisCacheWithProtobuf[T any](client redis.UniversalClient, prefix string, ttl time.Duration, loadFunc LoadFunc[T]) *RedisCache[T] {
+	return NewRedisCache(client, prefix, ttl, &ProtobufSerializer{}, loadFunc)
 }
 
 // getKey 获取带前缀的键名
@@ -40,31 +118,70 @@ func (r *RedisCache[T]) getKey(key string) string {
 }
 
 // Get 获取缓存
+// 参数:
+//   - ctx: context.Context 上下文
+//   - key: string 缓存键
+//
+// 返回:
+//   - T 缓存值
+//   - error 错误信息
 func (r *RedisCache[T]) Get(ctx context.Context, key string) (T, error) {
 	var zero T
 	fullKey := r.getKey(key)
 
 	result, err := r.client.Get(ctx, fullKey).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return zero, fmt.Errorf("key not found: %s", key)
-		}
-		return zero, fmt.Errorf("failed to get cache: %w", err)
+	if err == nil {
+		return zero, nil
+	}
+	if r.loadFunc == nil {
+		return zero, fmt.Errorf("key not found and no load handler configured: %s", key)
 	}
 
 	var value T
-	if err := json.Unmarshal([]byte(result), &value); err != nil {
+	if err := r.serializer.Unmarshal([]byte(result), &value); err != nil {
 		return zero, fmt.Errorf("failed to unmarshal cache value: %w", err)
 	}
 
-	return value, nil
+	dest, err, _ := r.group.Do(key, func() (interface{}, error) {
+		// 再次尝试从缓存获取（可能在等待期间已被其他请求加载）
+		if value, err := r.Get(ctx, key); err == nil {
+			return value, nil
+		}
+		// 调用加载处理器获取数据
+		loadedValue, err := r.loadFunc(ctx, key)
+		if err != nil {
+			return zero, fmt.Errorf("failed to load data: %w", err)
+		}
+		// 将加载的数据存入缓存
+		if err := r.Set(ctx, key, loadedValue); err != nil {
+			// 缓存失败不影响返回数据，只记录错误
+			// 可以考虑添加日志记录
+			logrus.WithFields(logrus.Fields{
+				"key":   key,
+				"error": err,
+			}).Error("failed to set cache")
+		}
+
+		return loadedValue, nil
+	})
+	if err != nil {
+		return zero, fmt.Errorf("failed to load data: %w", err)
+	}
+	return dest.(T), nil
 }
 
 // Set 设置缓存
+// 参数:
+//   - ctx: context.Context 上下文
+//   - key: string 缓存键
+//   - value: T 缓存值
+//
+// 返回:
+//   - error 错误信息
 func (r *RedisCache[T]) Set(ctx context.Context, key string, value T) error {
 	fullKey := r.getKey(key)
 
-	data, err := json.Marshal(value)
+	data, err := r.serializer.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache value: %w", err)
 	}
@@ -167,7 +284,7 @@ func (r *RedisCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 func (r *RedisCache[T]) SetWithoutTTL(ctx context.Context, key string, value T) error {
 	fullKey := r.getKey(key)
 
-	data, err := json.Marshal(value)
+	data, err := r.serializer.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache value: %w", err)
 	}
@@ -191,7 +308,7 @@ func (r *RedisCache[T]) SetWithoutTTL(ctx context.Context, key string, value T) 
 func (r *RedisCache[T]) SetWithCustomTTL(ctx context.Context, key string, value T, ttl time.Duration) error {
 	fullKey := r.getKey(key)
 
-	data, err := json.Marshal(value)
+	data, err := r.serializer.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache value: %w", err)
 	}
@@ -201,6 +318,20 @@ func (r *RedisCache[T]) SetWithCustomTTL(ctx context.Context, key string, value 
 	}
 
 	return nil
+}
+
+// GetSerializer 获取当前序列化器
+// 返回:
+//   - Serializer 当前序列化器
+func (r *RedisCache[T]) GetSerializer() Serializer {
+	return r.serializer
+}
+
+// SetSerializer 设置序列化器
+// 参数:
+//   - serializer: Serializer 新的序列化器
+func (r *RedisCache[T]) SetSerializer(serializer Serializer) {
+	r.serializer = serializer
 }
 
 // RawRedisCache 只负责存取 []byte，不做序列化
@@ -307,5 +438,3 @@ func (r *RawRedisCache) SetTTL(ctx context.Context, key string, ttl time.Duratio
 
 	return nil
 }
-
-

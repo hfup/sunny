@@ -9,9 +9,6 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// LoadFunc 回调函数类型，用于加载数据
-type LoadFunc[T any] func(ctx context.Context, key string) (T, error)
-
 // cacheItem 缓存项
 type cacheItem[T any] struct {
 	value     T
