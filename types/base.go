@@ -27,7 +27,7 @@ type SubServiceInf interface {
 
 // 可运行接口  
 type RunAbleInf interface {
-	Run(ctx context.Context,args any) error
+	Run(ctx context.Context,app any) error
 	Description() string // 描述
 }
 

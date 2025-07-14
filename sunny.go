@@ -677,3 +677,32 @@ func (s *Sunny) GetDBFromKey(key string) (*gorm.DB,error){
 	return s.databaseClientManager.GetDBFromKey(key)
 }
 
+// 获取默认数据库客户端
+// 返回：
+//  - 数据库客户端
+//  - 错误
+func (s *Sunny) GetDefaultDB() (*gorm.DB,error){
+	if s.databaseClientManager == nil{
+		return nil,errors.New("database client manager is not set")
+	}
+	return s.databaseClientManager.GetDBFromKey("default")
+}
+
+
+// 使用同步执行的 runAble
+// 参数：
+//  - runAbles 同步执行的 runAble
+// 返回：
+//  - 错误
+func (s *Sunny) UseSyncRunAbles(runAbles ...types.RunAbleInf) {
+	s.syncRunAbles = append(s.syncRunAbles, runAbles...)
+}
+
+// 使用异步执行的 runAble
+// 参数：
+//  - runAbles 异步执行的 runAble
+// 返回：
+//  - 错误
+func (s *Sunny) UseAsyncRunAbles(runAbles ...types.RunAbleInf) {
+	s.asyncRunAbles = append(s.asyncRunAbles, runAbles...)
+}
