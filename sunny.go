@@ -677,6 +677,7 @@ func (s *Sunny) GetDBFromKey(key string) (*gorm.DB,error){
 	return s.databaseClientManager.GetDBFromKey(key)
 }
 
+
 // 获取默认数据库客户端
 // 返回：
 //  - 数据库客户端
