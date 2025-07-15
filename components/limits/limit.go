@@ -20,6 +20,7 @@ type UniLimiterLockerInf interface {
 	DoWithWaitLock(ctx context.Context, key string, fn func() error) error
 }
 
+
 var (
 	ErrLockBusy = errors.New("lock busy")
 )
