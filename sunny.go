@@ -61,6 +61,7 @@ type MultiRoleHandler func(groupLabel, actionLabel string) string
 // Sunny 主服务
 type Sunny struct {
 	*gin.Engine
+	serviceMark string // 服务标识 用于区分不同的服务
 	configPath string // 配置文件路径
 	activeEnv string // 激活环境 dev,test prod
 	runPath string // 运行路径
@@ -77,6 +78,7 @@ type Sunny struct {
 
 	subServices []types.SubServiceInf
 	redisClient redis.UniversalClient // redis 客户端
+	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
 
 	grpcServices             []types.RegisterGrpcServiceInf
@@ -91,12 +93,22 @@ type Sunny struct {
 
 	jwtKeyManager *auths.JwtKeyManager // jwt key 管理器
 
+
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
 	asyncRunAbles []types.RunAbleInf
 	subSrvSuccessCount int // 启动成功子服务数量
 	subSrvCount int // 子服务数量
 	errSrvCount int // 启动失败子服务数量
+}
+
+// 设置服务标识	
+// 参数：
+//  - serviceMark 服务标识
+// 返回：
+//  - 错误
+func (s *Sunny) SetServiceMark(serviceMark string) {
+	s.serviceMark = serviceMark
 }
 
 // 初始化
@@ -707,3 +719,4 @@ func (s *Sunny) UseSyncRunAbles(runAbles ...types.RunAbleInf) {
 func (s *Sunny) UseAsyncRunAbles(runAbles ...types.RunAbleInf) {
 	s.asyncRunAbles = append(s.asyncRunAbles, runAbles...)
 }
+

@@ -61,7 +61,6 @@ type DatabaseInfo struct {
 
 type DBConfig struct {
 	DatabaseInfo *DatabaseInfo
-	DbId         string `yaml:"db_id" json:"db_id"`                   // 数据库id 唯一
 	MaxIdelConns int    `yaml:"max_idel_conns" json:"max_idel_conns"` // 最大空闲连接数
 	MaxOpenConns int    `yaml:"max_open_conns" json:"max_open_conns"` // 最大打开连接数
 	MaxLifetime  int    `yaml:"max_lifetime" json:"max_lifetime"`     // 连接最大生命周期

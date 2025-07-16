@@ -53,6 +53,15 @@ func (c *Context) GetRedisClient() (redis.UniversalClient, error) {
 	return c.curRedisClient, nil
 }
 
+// 获取 redis 客户端
+func (c *Context) GetRedisClientFromKey(key string) (redis.UniversalClient, error) {
+	redisClient, err := c.GetRedisClient()
+	if err != nil {
+		return nil, err
+	}
+	return redisClient, nil
+}
+
 // 设置当前 redis 客户端
 func (c *Context) SetRedisClient(redisClient redis.UniversalClient) {
 	c.curRedisClient = redisClient
