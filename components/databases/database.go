@@ -8,8 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
+
 type DBRouterFunc func(key string) (*gorm.DB, error)
-type DBInitHandler func(ctx context.Context, opt any) ([]*types.DBConfig, error) // 数据库初始化
+// 数据库初始化
+// map[string]*types.DBConfig 数据库配置 key 为 areaKey
+type DBInitHandler func(ctx context.Context, opt any) (map[string]*types.DatabaseInfo, error) // 数据库初始化
 
 // 数据库管理器接口
 type DatabaseClientMangerInf interface {
@@ -51,18 +54,15 @@ func (d *DatabaseClientManager) Start(ctx context.Context, args any, resultChan 
 		}
 		return
 	}
-	for _, dbConfig := range dbConfigs {
-		db, err := MysqlConnect(dbConfig)
+	for key, dbConfig := range dbConfigs {
+		db, err := MysqlConnect(dbConfig) // 数据库连接
 		if err != nil {
 			resultChan <- types.Result[any]{
 				ErrCode: 1,
 				Message: "database manager start error: " + err.Error(),
 			}
 		}
-		if dbConfig.DbId == "default" { // 默认数据库
-			d.defaultDB = db
-		}
-		d.dbMap[dbConfig.DbId] = db
+		d.dbMap[key] = db
 	}
 	// 启动成功
 	resultChan <- types.Result[any]{
@@ -91,16 +91,16 @@ func (d *DatabaseClientManager) GetDefaultDB() (*gorm.DB, error) {
 	return d.defaultDB, nil
 }
 
-
-
+// 本地数据库管理器
 type LocalDatabaseClientManager struct {
-	dbConfigs []*types.DBConfig
+	dbConfigs []*types.DatabaseInfo
 	dbMap     map[string]*gorm.DB
 	defaultDB *gorm.DB
 	dbRouterFunc DBRouterFunc
 }
 
-func NewLocalDatabaseClientManager(dbConfigs []*types.DBConfig) *LocalDatabaseClientManager {
+// 本地数据库管理器
+func NewLocalDatabaseClientManager(dbConfigs []*types.DatabaseInfo) *LocalDatabaseClientManager {
 	return &LocalDatabaseClientManager{
 		dbConfigs: dbConfigs,
 		dbMap: make(map[string]*gorm.DB),
@@ -125,6 +125,9 @@ func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, result
 		isSingle = true
 	}
 	for _, dbConfig := range d.dbConfigs {
+		if dbConfig.AreaKey == "" {
+			dbConfig.AreaKey = "default"
+		}
 		db, err := MysqlConnect(dbConfig)
 		if err != nil {
 			resultChan <- types.Result[any]{
@@ -138,7 +141,7 @@ func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, result
 			d.dbMap["default"] = db
 			break
 		}else{
-			d.dbMap[dbConfig.DbId] = db
+			d.dbMap[dbConfig.AreaKey] = db
 		}
 	}
 	// 启动成功
@@ -173,4 +176,86 @@ func (d *LocalDatabaseClientManager) IsErrorStop() bool {
 func (d *LocalDatabaseClientManager) ServiceName() string {
 	return  "local database 客户端管理器"
 }
+
+
+// 远程请求数据库配置
+// 参数:
+//   - ctx 上下文
+//   - serviceMark 服务标识 当前服务的标识
+// 返回:
+//   - map[string]*types.DatabaseInfo 数据库配置 key 为 areaKey
+//   - error 错误
+type RemoteDatabaseHandlerFunc func (ctx context.Context,serviceMark string) (map[string]*types.DatabaseInfo,error) // 请求数据库配置
+
+type RemoteDatabaseClientManagerInf interface {
+	types.SubServiceInf
+	GetDBFromKey(key string) (*gorm.DB, error)
+	SetRouterHandler(routerHandler DBRouterFunc) // 设置路由方法
+}
+
+
+// 远程同步数据库 管理器
+type RemoteDatabaseClientManager struct {
+	dbMap     map[string]*gorm.DB
+	requestHandler RemoteDatabaseHandlerFunc
+}
+
+
+// 创建远程数据库管理器
+// 参数:
+//   - requestHandler 请求数据库配置
+// 返回:
+//   - *RemoteDatabaseClientManager 远程数据库管理器
+func NewRemoteDatabaseClientManager(requestHandler RemoteDatabaseHandlerFunc) *RemoteDatabaseClientManager {
+	return &RemoteDatabaseClientManager{
+		requestHandler: requestHandler,
+		dbMap: make(map[string]*gorm.DB),
+	}
+}
+
+
+// 启动远程数据库管理器
+// 参数:
+//   - ctx 上下文
+//   - serivceMark 服务标识
+//   - resultChan 结果通道
+func (d *RemoteDatabaseClientManager) Start(ctx context.Context, serivceMark any, resultChan chan<- types.Result[any]) {
+	serviceMarkStr,ok:=serivceMark.(string)
+	if !ok {
+		resultChan <- types.Result[any]{
+			ErrCode: 1,
+			Message: "database manager start error: service mark is not string",
+		}
+		return
+	}
+	dbConfigs, err := d.requestHandler(ctx, serviceMarkStr)
+	if err != nil {
+		resultChan <- types.Result[any]{
+			ErrCode: 1,
+			Message: "database manager start error: " + err.Error(),
+		}
+		return
+	}
+	for key, dbConfig := range dbConfigs {
+		db, err := MysqlConnect(dbConfig) // 数据库连接
+		if err != nil {
+			resultChan <- types.Result[any]{
+				ErrCode: 1,
+				Message: "database manager start error: " + err.Error(),
+			}
+		}
+		d.dbMap[key] = db
+	}
+}
+
+
+// 根据key获取数据库
+func (d *RemoteDatabaseClientManager) GetDBFromKey(areaKey string) (*gorm.DB, error) {
+	db, ok := d.dbMap[areaKey]
+	if !ok {
+		return nil, errors.New("database not found")
+	}
+	return db, nil
+}
+
 

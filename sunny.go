@@ -678,15 +678,15 @@ func (s *Sunny) AddProducerFactory(factory mqs.ProducerFactory) {
 
 // 获取数据库客户端
 // 参数：
-//  - key 数据库客户端标记
+//  - key 数据库客户端标记 areaKey 区标志
 // 返回：
 //  - 数据库客户端
 //  - 错误
-func (s *Sunny) GetDBFromKey(key string) (*gorm.DB,error){
+func (s *Sunny) GetDBFromKey(areaKey  string) (*gorm.DB,error){
 	if s.databaseClientManager == nil{
 		return nil,errors.New("database client manager is not set")
 	}
-	return s.databaseClientManager.GetDBFromKey(key)
+	return s.databaseClientManager.GetDBFromKey(areaKey)
 }
 
 
