@@ -59,7 +59,12 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		app.AddSubServices(databaseClientManager)
 	}
 	if resourcesInfo.Mq != nil{
-		
+		mqManager,err := mqs.CreateMqManager(resourcesInfo.Mq,mqs.GetDefaultFailedStore())
+		if err != nil{
+			return err
+		}
+		app.SetMqManager(mqManager)
+		app.AddSubServices(mqManager)
 	}
 	return nil
 }

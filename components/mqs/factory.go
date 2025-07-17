@@ -2,6 +2,7 @@ package mqs
 
 import (
 	"fmt"
+	"github.com/hfup/sunny/types"
 	"time"
 )
 
@@ -13,24 +14,27 @@ import (
 // 返回:
 //   - MqManagerInf 消息队列管理器接口
 //   - error 错误信息
-func CreateMqManager(mqType MqType, options any, failedStore FailedMessageStore) (MqManagerInf, error) {
-	switch mqType {
-	case MqTypeRabbitMQ:
-		rabbitOptions, ok := options.(*RabbitMQOptions)
-		if !ok {
-			return nil, fmt.Errorf("rabbitMQ 配置选项类型错误，期望 *RabbitMQOptions")
-		}
-		return NewRabbitMqManager(rabbitOptions, failedStore), nil
-		
-	case MqTypeKafka:
-		kafkaOptions, ok := options.(*KafkaOptions)
-		if !ok {
-			return nil, fmt.Errorf("kafka 配置选项类型错误，期望 *KafkaOptions")
-		}
-		return NewKafkaManager(kafkaOptions, failedStore), nil
-		
+func CreateMqManager(opt *types.MqConfig, failedStore FailedMessageStore) (MqManagerInf, error) {
+	switch opt.Type {
+	case "rabbitmq":
+		url := fmt.Sprintf("amqp://%s:%s@%s:%d/",opt.RabbitMQ.Username,opt.RabbitMQ.Password,opt.RabbitMQ.Host,opt.RabbitMQ.Port)
+		return NewRabbitMqManager(&RabbitMQOptions{
+		URL: url,
+		ChannelPoolSize: opt.RabbitMQ.ChannelPoolSize,
+		MaxRetries: opt.RabbitMQ.MaxRetries,
+		RetryInterval: time.Duration(opt.RabbitMQ.RetryInterval) * time.Second, // 重试间隔
+		ReconnectDelay: time.Duration(opt.RabbitMQ.ReconnectDelay) * time.Second, // 重连延迟
+		},failedStore),nil
+	case "kafka":
+		return NewKafkaManager(&KafkaOptions{
+			Brokers: opt.Kafka.Brokers,
+			MaxRetries: opt.Kafka.MaxRetries,
+			RetryInterval: time.Duration(opt.Kafka.RetryInterval) * time.Second, // 重试间隔
+			ReconnectDelay: time.Duration(opt.Kafka.ReconnectDelay) * time.Second, // 重连延迟
+			SecurityProtocol: opt.Kafka.SecurityProtocol,
+		},failedStore), nil	
 	default:
-		return nil, fmt.Errorf("不支持的消息队列类型: %s", mqType)
+		return nil, fmt.Errorf("不支持的消息队列类型: %s", opt.Type)
 	}
 }
 
