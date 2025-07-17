@@ -82,10 +82,12 @@ type Sunny struct {
 	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
 	mqsManager mqs.MqManagerInf // mq 管理器
+	mqFailStore mqs.FailedMessageStore // mq 失败消息存储
 
 
 	grpcServices             []types.RegisterGrpcServiceInf
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
+
 
 
 	consumerFactories []mqs.ConsumerFactory // 消费者工厂 要延迟处理
@@ -94,6 +96,8 @@ type Sunny struct {
 
 
 	jwtKeyManager *auths.JwtKeyManager // jwt key 管理器
+
+	remoteResourceManager *RemoteResourceManager // 远程资源管理器
 
 
 	// 同步执行的 RunAble
@@ -140,6 +144,24 @@ func (s *Sunny) SetMqManager(mqManager mqs.MqManagerInf) {
 	s.mqsManager = mqManager
 }
 
+// 设置 mq 失败消息存储
+// 参数：
+//  - mqFailStore mq 失败消息存储
+// 返回：
+//  - 错误
+func (s *Sunny) SetMqFailStore(mqFailStore mqs.FailedMessageStore) {
+	s.mqFailStore = mqFailStore
+}
+
+// 设置远程资源管理器
+// 参数：
+//  - remoteResourceManager 远程资源管理器
+// 返回：
+//  - 错误
+func (s *Sunny) SetRemoteResourceManager(remoteResourceManager *RemoteResourceManager) {
+	s.remoteResourceManager = remoteResourceManager
+}
+
 
 // 初始化
 // 参数：
@@ -179,30 +201,42 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.databaseClientManager = databaseClientManager
 	}
 
+	// 初始化远程资源管理器
+	if s.remoteResourceManager != nil{
+		err = s.remoteResourceManager.Init(context.TODO(),s)
+		if err != nil{
+			return err
+		}
+	}
 	// 初始化mq
 	if s.config.Mq != nil{
 		// 默认 失败 放内存
-		failedStore := mqs.NewMemoryFailedMessageStore()
 		switch s.config.Mq.Type {
 		case "rabbitmq":
 			url := fmt.Sprintf("amqp://%s:%s@%s:%d/",s.config.Mq.RabbitMQ.Username,s.config.Mq.RabbitMQ.Password,s.config.Mq.RabbitMQ.Host,s.config.Mq.RabbitMQ.Port)
+			if s.mqFailStore == nil{
+				s.mqFailStore = mqs.NewMemoryFailedMessageStore()
+			}
 			s.mqsManager = mqs.NewRabbitMqManager(&mqs.RabbitMQOptions{
 				URL: url,
 				ChannelPoolSize: s.config.Mq.RabbitMQ.ChannelPoolSize,
 				MaxRetries: s.config.Mq.RabbitMQ.MaxRetries,
 				RetryInterval: time.Duration(s.config.Mq.RabbitMQ.RetryInterval) * time.Second, // 重试间隔
 				ReconnectDelay: time.Duration(s.config.Mq.RabbitMQ.ReconnectDelay) * time.Second, // 重连延迟
-			},failedStore)
+			},s.mqFailStore)
 
 			s.AddSubServices(s.mqsManager)
 		case "kafka":
+			if s.mqFailStore == nil{
+				s.mqFailStore = mqs.NewMemoryFailedMessageStore()
+			}
 			s.mqsManager = mqs.NewKafkaManager(&mqs.KafkaOptions{
 				Brokers: s.config.Mq.Kafka.Brokers,
 				MaxRetries: s.config.Mq.Kafka.MaxRetries,
 				RetryInterval: time.Duration(s.config.Mq.Kafka.RetryInterval) * time.Second, // 重试间隔
 				ReconnectDelay: time.Duration(s.config.Mq.Kafka.ReconnectDelay) * time.Second, // 重连延迟
 				SecurityProtocol: s.config.Mq.Kafka.SecurityProtocol,
-			},failedStore)
+			},s.mqFailStore)
 			s.AddSubServices(s.mqsManager)
 		default:
 			logrus.Warn("mq config type not support")

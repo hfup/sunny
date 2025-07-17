@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/hfup/sunny/types"
-	"github.com/sirupsen/logrus"
 	"github.com/hfup/sunny/components/databases"
 	"github.com/hfup/sunny/components/mqs"
 )
@@ -59,7 +58,10 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		app.AddSubServices(databaseClientManager)
 	}
 	if resourcesInfo.Mq != nil{
-		mqManager,err := mqs.CreateMqManager(resourcesInfo.Mq,mqs.GetDefaultFailedStore())
+		if app.mqFailStore == nil{
+			app.mqFailStore = mqs.GetDefaultFailedStore()
+		}
+		mqManager,err := mqs.CreateMqManager(resourcesInfo.Mq,app.mqFailStore)
 		if err != nil{
 			return err
 		}
