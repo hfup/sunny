@@ -12,7 +12,6 @@ var (
 	ErrRedisClientNotFound = errors.New("redis client not found")
 )
 
-
 type RedisRouterFunc func(key string) (redis.UniversalClient, error)
 
 type RedisClientManagerInf interface {
@@ -22,18 +21,17 @@ type RedisClientManagerInf interface {
 }
 
 type LocalRedisClientManager struct {
-	redisConfigs []*types.RedisConfig
+	redisConfigs    []*types.RedisInfo
 	redisRouterFunc RedisRouterFunc
-	redisMap map[string]redis.UniversalClient
+	redisMap        map[string]redis.UniversalClient
 
 	defaultClient redis.UniversalClient
 }
 
-
-func NewLocalRedisClientManager(opt []*types.RedisConfig) *LocalRedisClientManager {
+func NewLocalRedisClientManager(opt []*types.RedisInfo) *LocalRedisClientManager {
 	return &LocalRedisClientManager{
 		redisConfigs: opt,
-		redisMap: make(map[string]redis.UniversalClient),
+		redisMap:     make(map[string]redis.UniversalClient),
 	}
 }
 
@@ -41,21 +39,28 @@ func (l *LocalRedisClientManager) SetRouterHandler(routerHandler RedisRouterFunc
 	l.redisRouterFunc = routerHandler
 }
 
-
 // 配置
 func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
 	l.redisMap = make(map[string]redis.UniversalClient)
-	
+
+	// 遍历配置 创建 redis 客户端
 	for _, redisConfig := range l.redisConfigs {
+		if redisConfig.Key == "" {
+			resultChan <- types.Result[any]{
+				ErrCode: 1,
+				Message: "redis config key is empty, key: ",
+			}
+			return
+		}
 		var client redis.UniversalClient
 		var err error
-		
+
 		if redisConfig.IsCluster {
 			client, err = RedisClusterConnect(redisConfig)
 		} else {
 			client, err = RedisConnect(redisConfig)
 		}
-		
+
 		if err != nil {
 			resultChan <- types.Result[any]{
 				ErrCode: 1,
@@ -63,11 +68,11 @@ func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultCha
 			}
 			return
 		}
-		
+
 		// 存储客户端到 map 中
-		l.redisMap[redisConfig.DbId] = client
-		
-		if redisConfig.DbId == "default" {
+		l.redisMap[redisConfig.Key] = client
+
+		if redisConfig.Key == "default" {
 			l.defaultClient = client
 		}
 	}
@@ -85,7 +90,7 @@ func (l *LocalRedisClientManager) GetClientFromKey(key string) (redis.UniversalC
 	}
 	if l.redisRouterFunc != nil {
 		return l.redisRouterFunc(key)
-	}	
+	}
 	client, ok := l.redisMap[key]
 	if !ok {
 		return nil, ErrRedisClientNotFound
@@ -102,13 +107,3 @@ func (l *LocalRedisClientManager) IsErrorStop() bool {
 func (l *LocalRedisClientManager) ServiceName() string {
 	return "local Redis 客户端管理器"
 }
-
-
-
-
-
-
-
-
-
-

@@ -78,13 +78,15 @@ type Sunny struct {
 
 	subServices []types.SubServiceInf
 	redisClient redis.UniversalClient // redis 客户端
+
 	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
+	mqsManager mqs.MqManagerInf // mq 管理器
+
 
 	grpcServices             []types.RegisterGrpcServiceInf
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
 
-	mqsManager mqs.MqManagerInf // mq 管理器
 
 	consumerFactories []mqs.ConsumerFactory // 消费者工厂 要延迟处理
 	producerFactories []mqs.ProducerFactory // 生产者工厂 要延迟处理
@@ -110,6 +112,34 @@ type Sunny struct {
 func (s *Sunny) SetServiceMark(serviceMark string) {
 	s.serviceMark = serviceMark
 }
+
+// 设置 redis 管理器
+// 参数：
+//  - redisClientManager redis 管理器
+// 返回：
+//  - 错误
+func (s *Sunny) SetRedisClientManager(redisClientManager databases.RedisClientManagerInf) {
+	s.redisManager = redisClientManager
+}
+
+// 设置数据库管理器
+// 参数：
+//  - databaseClientManager 数据库管理器
+// 返回：
+//  - 错误
+func (s *Sunny) SetDatabaseClientManager(databaseClientManager databases.DatabaseClientMangerInf) {
+	s.databaseClientManager = databaseClientManager
+}
+
+// 设置 mq 管理器
+// 参数：
+//  - mqManager mq 管理器
+// 返回：
+//  - 错误
+func (s *Sunny) SetMqManager(mqManager mqs.MqManagerInf) {
+	s.mqsManager = mqManager
+}
+
 
 // 初始化
 // 参数：
@@ -142,36 +172,11 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.initWebRoutes(s.config.WebRoutes)
 	}
 
-	// 初始化 redis
-	if s.config.Redis != nil{
-		if len(s.config.Redis.Addrs) == 0{
-			logrus.Warn("redis config is empty")
-		}else{
-			if s.config.Redis.IsCluster{
-				redisClient,err := databases.RedisClusterConnect(s.config.Redis)
-				if err != nil{
-					logrus.Error("redis cluster connect error: ", err)
-					return err
-				}
-				s.redisClient = redisClient
-			}else{
-				redisClient,err := databases.RedisConnect(s.config.Redis)
-				if err != nil{
-					logrus.Error("redis connect error: ", err)
-					return err
-				}
-				s.redisClient = redisClient
-			}
-		}
-	}
-
 	// 初始化数据库
-	if s.config.DatabaseClientManager != nil{
-			logrus.Warn("database manager db config is empty")
-	}else{
-			databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.DatabaseClientManager.DBs)
-			s.AddSubServices(databaseClientManager)
-			s.databaseClientManager = databaseClientManager
+	if len(s.config.Databases) > 0{
+		databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.Databases)
+		s.AddSubServices(databaseClientManager)
+		s.databaseClientManager = databaseClientManager
 	}
 
 	// 初始化mq

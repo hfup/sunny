@@ -6,8 +6,8 @@ type Config struct {
 	EnvArgs   map[string]string `yaml:"env_args" json:"env_args"` // 环境参数
 	WebRoutes []*WebRouterInfo  `yaml:"web_routes" json:"web_routes"` // 路由信息
 	Services  []*ServiceInfo    `yaml:"services" json:"services"`     // 服务信息
-	DatabaseClientManager *DatabaseClientManagerInfo `yaml:"database_client_manager" json:"database_client_manager"` // 数据库管理器配置
-	Redis *RedisConfig `yaml:"redis" json:"redis"` // redis 配置
+	Databases []*DatabaseInfo `yaml:"databases" json:"databases"` // 数据库配置
+	Redis []*RedisInfo `yaml:"redis" json:"redis"` // redis 配置
 	Mq *MqConfig `yaml:"mq" json:"mq"` // mq 配置
 }
 
@@ -29,7 +29,7 @@ type ServiceInfo struct {
 
 
 // redis 配置
-type RedisConfig struct {
+type RedisInfo struct {
 	IsCluster bool `yaml:"is_cluster" json:"is_cluster"` // 是否集群
 	Addrs     []string `yaml:"addrs" json:"addrs"` // 集群地址 如果是单机，则只有一个地址
 	PoolSize  int `yaml:"pool_size" json:"pool_size"` // 连接池大小
@@ -38,9 +38,8 @@ type RedisConfig struct {
 	MinIdleConns int `yaml:"min_idle_conns" json:"min_idle_conns"` // 最小空闲连接数
 	Password  string `yaml:"password" json:"password"` // 密码
 	DB        int `yaml:"db" json:"db"` // 数据库
-	DbId      string `yaml:"db_id" json:"db_id"` // 数据库id 唯一
+	Key       string `yaml:"key" json:"key"` // 唯一标识
 }
-
 
 // 数据库信息
 type DatabaseInfo struct {
@@ -54,6 +53,7 @@ type DatabaseInfo struct {
 	MaxIdelConns int    `yaml:"max_idel_conns" json:"max_idel_conns"` // 最大空闲连接数
 	MaxOpenConns int    `yaml:"max_open_conns" json:"max_open_conns"` // 最大打开连接数
 	MaxLifetime  int    `yaml:"max_lifetime" json:"max_lifetime"`     // 连接最大生命周期
+	IsDebug      int8   `yaml:"is_debug" json:"is_debug"`             // 是否打印日志 1 打印 0 不打印
 
 	AreaKey string `yaml:"area_key" json:"area_key"` // 区域key 用于区分不同的数据库
 }

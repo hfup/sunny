@@ -1,17 +1,17 @@
 package databases
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
+
+	"time"
 
 	"github.com/hfup/sunny/types"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 )
-
 
 // mysql 连接
 func MysqlConnect(dataInfo *types.DatabaseInfo) (*gorm.DB, error) {
@@ -45,11 +45,10 @@ func MysqlConnect(dataInfo *types.DatabaseInfo) (*gorm.DB, error) {
 	return db, nil
 }
 
-
 // 单机连接
-func RedisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
+func RedisConnect(redisConfig *types.RedisInfo) (redis.UniversalClient, error) {
 	if len(redisConfig.Addrs) == 0 {
-		return nil,errors.New("redis 配置信息不存在")
+		return nil, errors.New("redis 配置信息不存在")
 	}
 	options := &redis.Options{
 		Addr:         redisConfig.Addrs[0],
@@ -58,7 +57,7 @@ func RedisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error)
 		PoolSize:     redisConfig.PoolSize,
 		MinIdleConns: redisConfig.MinIdleConns,
 	}
-	
+
 	client := redis.NewClient(options)
 	// 测试连接
 	if err := client.Ping(client.Context()).Err(); err != nil {
@@ -68,14 +67,14 @@ func RedisConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error)
 }
 
 // 集群连接
-func RedisClusterConnect(redisConfig *types.RedisConfig) (redis.UniversalClient, error) {
+func RedisClusterConnect(redisConfig *types.RedisInfo) (redis.UniversalClient, error) {
 	options := &redis.ClusterOptions{
 		Addrs:        redisConfig.Addrs,
 		Password:     redisConfig.Password,
 		PoolSize:     redisConfig.PoolSize,
 		MinIdleConns: redisConfig.MinIdleConns,
 	}
-	
+
 	client := redis.NewClusterClient(options)
 	// 测试连接
 	if err := client.Ping(client.Context()).Err(); err != nil {
