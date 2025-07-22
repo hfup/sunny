@@ -15,18 +15,21 @@ import (
 
 // mysql 连接
 func MysqlConnect(dataInfo *types.DatabaseInfo) (*gorm.DB, error) {
+	if  dataInfo.Charset == "" {
+		dataInfo.Charset = "utf8mb4"
+	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local",
 		dataInfo.User, dataInfo.Password, dataInfo.Host, dataInfo.Port, dataInfo.DbName, dataInfo.Charset)
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
-	if dataInfo.MaxIdelConns > 0 {
+	if dataInfo.MaxIdleConns > 0 {
 		sqlDB, err := db.DB()
 		if err != nil {
 			return nil, err
 		}
-		sqlDB.SetMaxIdleConns(dataInfo.MaxIdelConns)
+		sqlDB.SetMaxIdleConns(dataInfo.MaxIdleConns)
 	}
 	if dataInfo.MaxOpenConns > 0 {
 		sqlDB, err := db.DB()

@@ -45,7 +45,7 @@ func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultCha
 
 	// 遍历配置 创建 redis 客户端
 	for _, redisConfig := range l.redisConfigs {
-		if redisConfig.Key == "" {
+		if redisConfig.AreaKey == "" {
 			resultChan <- types.Result[any]{
 				ErrCode: 1,
 				Message: "redis config key is empty, key: ",
@@ -70,9 +70,9 @@ func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultCha
 		}
 
 		// 存储客户端到 map 中
-		l.redisMap[redisConfig.Key] = client
+		l.redisMap[redisConfig.AreaKey] = client
 
-		if redisConfig.Key == "default" {
+		if redisConfig.AreaKey == "default" {
 			l.defaultClient = client
 		}
 	}

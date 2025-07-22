@@ -36,9 +36,9 @@ type RedisInfo struct {
 	MaxIdle   int `yaml:"max_idle" json:"max_idle"` // 最大空闲连接数
 	MaxActive int `yaml:"max_active" json:"max_active"` // 最大活跃连接数
 	MinIdleConns int `yaml:"min_idle_conns" json:"min_idle_conns"` // 最小空闲连接数
-	Password  string `yaml:"password" json:"password"` // 密码
+	Password  string `yaml:"password" json:"password"` // 密码	
 	DB        int `yaml:"db" json:"db"` // 数据库
-	Key       string `yaml:"key" json:"key"` // 唯一标识
+	AreaKey       string `yaml:"area_key" json:"area_key"` // 区域key 用于区分不同的redis
 }
 
 // 数据库信息
@@ -50,7 +50,7 @@ type DatabaseInfo struct {
 	Password string `yaml:"password" json:"password"`
 	DbName   string `yaml:"db_name" json:"db_name"`
 	Charset  string `yaml:"charset" json:"charset"` // 字符集
-	MaxIdelConns int    `yaml:"max_idel_conns" json:"max_idel_conns"` // 最大空闲连接数
+	MaxIdleConns int    `yaml:"max_idel_conns" json:"max_idle_conns"` // 最大空闲连接数
 	MaxOpenConns int    `yaml:"max_open_conns" json:"max_open_conns"` // 最大打开连接数
 	MaxLifetime  int    `yaml:"max_lifetime" json:"max_lifetime"`     // 连接最大生命周期
 	IsDebug      int8   `yaml:"is_debug" json:"is_debug"`             // 是否打印日志 1 打印 0 不打印

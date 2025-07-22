@@ -183,7 +183,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	if s.configPath == ""{
 		s.configPath = s.runPath + "/resources/"
 	}
-
+	logrus.Info("config path: ", s.configPath)
 	err = s.loadConfig()
 	if err != nil{
 		panic("load config file error: " + err.Error())
@@ -191,6 +191,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	logrus.Info("load config file success")
 
 	if len(s.config.WebRoutes) > 0 {
+		
 		s.initWebRoutes(s.config.WebRoutes)
 	}
 
@@ -397,17 +398,17 @@ func (s *Sunny) AddAsyncRunAbles(srvs ...types.RunAbleInf) error{
 // Start 启动 Sunny
 // 参数：
 //  - ctx 上下文
-//  - args 参数 0 是 配置文件路径 1 是 激活环境
+//  - args 参数 0 是 激活的环境 1 是 配置文件路径
 // 返回：
 //  - 错误
 func (s *Sunny) Start(ctx context.Context,args ...string) error{
 	configPath:=""
 	activeEnv:=""
 	if len(args) > 0 {
-		configPath = args[0]
+		activeEnv = args[0]
 	}
 	if len(args) > 1 {
-		activeEnv = args[1]
+		configPath = args[1]
 	}
 	err := s.Init(configPath,activeEnv) // 初始化
 	if err != nil{
@@ -653,12 +654,16 @@ func (s *Sunny) UseRoles(roles ...RoleInf) {
 //  - 错误
 func (s *Sunny) UseGroups(groups ...GroupInf) {
 	for _,group := range groups{
-		key:=group.RoleLabel() + group.GroupLabel()
+		key:=s.getGroupKey(group)
 		if _,ok := s.groups[key];ok{
 			panic("group label already exists")
 		}
-		s.groups[group.GroupLabel()] = group
+		s.groups[key] = group
 	}
+}
+
+func (s *Sunny) getGroupKey(groupInfo GroupInf) string {
+	return groupInfo.RoleLabel() + ":" + groupInfo.GroupLabel()
 }
 
 // 获取 grpc 客户端
