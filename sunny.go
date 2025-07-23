@@ -100,9 +100,12 @@ type Sunny struct {
 	remoteResourceManager *RemoteResourceManager // 远程资源管理器
 
 
+	onStartFunc []types.RunAbleInf // 启动时执行的函数 资源初始化
+
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
 	asyncRunAbles []types.RunAbleInf
+
 	subSrvSuccessCount int // 启动成功子服务数量
 	subSrvCount int // 子服务数量
 	errSrvCount int // 启动失败子服务数量
@@ -415,6 +418,23 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 		return err
 	}
 
+	cldCtx, cldCancel := context.WithCancel(ctx) // 创建一个上下文 用于取消
+	defer cldCancel()
+
+	// 启动时执行的函数
+	if len(s.onStartFunc) > 0 {
+		for _,runAble := range s.onStartFunc{
+			err=runAble.Run(cldCtx,s)
+			if err != nil{
+				logrus.WithFields(logrus.Fields{
+					"err_message": err.Error(),
+					"tip":runAble.Description(),
+				}).Error("on start func run error")
+				return err
+			}
+		}
+	}
+
 	// 绑定主题 生产者 消费者 
 	if s.mqsManager != nil{
 		for _,factory := range s.consumerFactories{
@@ -436,9 +456,6 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 			s.mqsManager.BindProducer(producer)
 		}
 	}
-
-	cldCtx, cldCancel := context.WithCancel(ctx) // 创建一个上下文 用于取消
-	defer cldCancel()
 
 	// 启动子服务
 	if len(s.subServices) > 0 {
@@ -764,3 +781,11 @@ func (s *Sunny) UseAsyncRunAbles(runAbles ...types.RunAbleInf) {
 	s.asyncRunAbles = append(s.asyncRunAbles, runAbles...)
 }
 
+// 使用启动时执行的函数
+// 参数：
+//  - runAbles 启动时执行的函数
+// 返回：
+//  - 错误
+func (s *Sunny) UseStartFunc(runAbles ...types.RunAbleInf) {
+	s.onStartFunc = append(s.onStartFunc, runAbles...)
+}
