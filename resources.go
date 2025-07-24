@@ -9,7 +9,6 @@ import (
 	"github.com/hfup/sunny/components/mqs"
 )
 
-
 type ResourcesInfo struct {
 	Redis []*types.RedisInfo `yaml:"redis" json:"redis"`
 	Databases []*types.DatabaseInfo `yaml:"databases" json:"databases"`
@@ -50,12 +49,12 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 	if len(resourcesInfo.Redis) > 0{
 		redisClientManager := databases.NewLocalRedisClientManager(resourcesInfo.Redis)
 		app.SetRedisClientManager(redisClientManager)
-		app.AddSubServices(redisClientManager)
+		app.UseStartFunc(redisClientManager)
 	}
 	if len(resourcesInfo.Databases) > 0{
 		databaseClientManager := databases.NewLocalDatabaseClientManager(resourcesInfo.Databases)
 		app.SetDatabaseClientManager(databaseClientManager)
-		app.AddSubServices(databaseClientManager)
+		app.UseStartFunc(databaseClientManager)
 	}
 	if resourcesInfo.Mq != nil{
 		if app.mqFailStore == nil{

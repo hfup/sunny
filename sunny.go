@@ -201,7 +201,7 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	// 初始化数据库
 	if len(s.config.Databases) > 0{
 		databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.Databases)
-		s.AddSubServices(databaseClientManager)
+		s.UseStartFunc(databaseClientManager) // 资源初始化
 		s.databaseClientManager = databaseClientManager
 	}
 
@@ -632,6 +632,11 @@ func (s *Sunny) SetJwtKeyManager(jwtKeyManager *auths.JwtKeyManager) {
 }
 
 
+// 添加角色前置处理器
+// 参数：
+//  - roleLabel 角色标签
+//  - order 顺序
+//  - handler 处理器
 func (s *Sunny) AddRoleBeforeHandler(roleLabel string,order int,handler ActionHandlerFunc) {
 	s.rolesBeforeHandlers[roleLabel] = append(s.rolesBeforeHandlers[roleLabel],ActionHandlerWithOrder{
 		Order: order,
@@ -639,6 +644,11 @@ func (s *Sunny) AddRoleBeforeHandler(roleLabel string,order int,handler ActionHa
 	})
 }
 
+// 添加角色后置处理器
+// 参数：
+//  - roleLabel 角色标签
+//  - order 顺序
+//  - handler 处理器
 func (s *Sunny) AddRoleAfterHandler(roleLabel string,order int,handler ActionHandlerFunc) {
 	s.rolesAfterHandlers[roleLabel] = append(s.rolesAfterHandlers[roleLabel],ActionHandlerWithOrder{
 		Order: order,
@@ -788,4 +798,13 @@ func (s *Sunny) UseAsyncRunAbles(runAbles ...types.RunAbleInf) {
 //  - 错误
 func (s *Sunny) UseStartFunc(runAbles ...types.RunAbleInf) {
 	s.onStartFunc = append(s.onStartFunc, runAbles...)
+}
+
+
+// 获取默认 redis 客户端
+func (s *Sunny) GetDefaultRedis() (redis.UniversalClient,error) {
+	if s.redisManager == nil{
+		return nil,errors.New("redis client manager is not set")
+	}
+	return s.redisManager.GetClientFromKey("default")
 }

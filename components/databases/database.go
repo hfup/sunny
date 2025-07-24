@@ -16,7 +16,7 @@ type DBInitHandler func(ctx context.Context, opt any) (map[string]*types.Databas
 
 // 数据库管理器接口
 type DatabaseClientMangerInf interface {
-	types.SubServiceInf
+	types.RunAbleInf
 	GetDBFromKey(key string) (*gorm.DB, error)
 	SetRouterHandler(routerHandler DBRouterFunc) // 设置路由方法
 }
@@ -27,7 +27,6 @@ type DatabaseClientManager struct {
 	dbRouterFunc DBRouterFunc
 
 	dbMap     map[string]*gorm.DB
-	defaultDB *gorm.DB
 }
 
 func NewDatabaseClientManager(initHandler DBInitHandler) *DatabaseClientManager {
@@ -44,31 +43,31 @@ func (d *DatabaseClientManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
 	d.dbRouterFunc = dbRouterFunc
 }
 
+func (d *DatabaseClientManager) Description() string {
+	return "数据库管理器"
+}
+
 // 启动数据库管理器
-func (d *DatabaseClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
-	dbConfigs, err := d.initHandler(ctx, args)
+func (d *DatabaseClientManager) Run(ctx context.Context, app any) error {
+	dbConfigs, err := d.initHandler(ctx, app)
 	if err != nil {
-		resultChan <- types.Result[any]{
-			ErrCode: 1,
-			Message: "database manager start error: " + err.Error(),
-		}
-		return
+		return err
 	}
+	isSingle := len(dbConfigs) == 1
 	for key, dbConfig := range dbConfigs {
-		db, err := MysqlConnect(dbConfig) // 数据库连接
+		if isSingle && dbConfig.AreaKey == "" {
+			dbConfig.AreaKey = "default"
+		}
+		if dbConfig.AreaKey == "" {
+			return errors.New("database manager start error: db config areaKey is empty")
+		}
+		db, err := MysqlConnect(dbConfig)
 		if err != nil {
-			resultChan <- types.Result[any]{
-				ErrCode: 1,
-				Message: "database manager start error: " + err.Error(),
-			}
+			return err
 		}
 		d.dbMap[key] = db
 	}
-	// 启动成功
-	resultChan <- types.Result[any]{
-		ErrCode: 0,
-		Message: "database manager start success",
-	}
+	return nil
 }
 
 // 根据key获取数据库
@@ -85,17 +84,21 @@ func (d *DatabaseClientManager) GetDBFromKey(key string) (*gorm.DB, error) {
 
 // 获取当前激活的数据库
 func (d *DatabaseClientManager) GetDefaultDB() (*gorm.DB, error) {
-	if d.defaultDB == nil {
+	if d.dbRouterFunc != nil {
+		return d.dbRouterFunc("default")
+	}
+	db, ok := d.dbMap["default"]
+	if !ok {
 		return nil, errors.New("default database not found")
 	}
-	return d.defaultDB, nil
+	return db, nil
 }
+
 
 // 本地数据库管理器
 type LocalDatabaseClientManager struct {
 	dbConfigs []*types.DatabaseInfo
 	dbMap     map[string]*gorm.DB
-	defaultDB *gorm.DB
 	dbRouterFunc DBRouterFunc
 }
 
@@ -111,52 +114,36 @@ func (d *LocalDatabaseClientManager) SetRouterHandler(handler DBRouterFunc) {
 	d.dbRouterFunc = handler
 }
 
-// 启动本地数据库管理器
-func (d *LocalDatabaseClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+
+// 启动数据库管理器
+func (d *LocalDatabaseClientManager) Run(ctx context.Context, app any) error {
 	if len(d.dbConfigs) == 0 {
-		resultChan <- types.Result[any]{
-			ErrCode: 1,
-			Message: "database manager start error: db configs is empty",
-		}
-		return
+		return errors.New("database manager start error: db configs is empty")
 	}
-	isSingle := false
-	if len(d.dbConfigs) == 1 {
-		isSingle = true
-	}
+	isSingle := len(d.dbConfigs) == 1
 	for _, dbConfig := range d.dbConfigs {
-		if dbConfig.AreaKey == "" {
+		if isSingle && dbConfig.AreaKey == "" {
 			dbConfig.AreaKey = "default"
+		}
+		if dbConfig.AreaKey == "" {
+			return errors.New("database manager start error: db config areaKey is empty")
 		}
 		db, err := MysqlConnect(dbConfig)
 		if err != nil {
-			resultChan <- types.Result[any]{
-				ErrCode: 1,
-				Message: "database manager start error: " + err.Error(),
-			}
-			return
+			return err
 		}
-		if isSingle {
-			d.defaultDB = db
-			d.dbMap["default"] = db
-			break
-		}else{
-			d.dbMap[dbConfig.AreaKey] = db
-		}
+		d.dbMap[dbConfig.AreaKey] = db
 	}
-	// 启动成功
-	resultChan <- types.Result[any]{
-		ErrCode: 0,
-		Message: "database manager start success",
-	}
+	return nil
+}
+
+func (d *LocalDatabaseClientManager) Description() string {
+	return "本地数据库管理器"
 }
 
 
 // 获取数据库实例
 func (d *LocalDatabaseClientManager) GetDBFromKey(key string) (*gorm.DB, error) {
-	if key == "default" {
-		return  d.defaultDB,nil
-	}
 	if d.dbRouterFunc != nil {
 		return d.dbRouterFunc(key)
 	}

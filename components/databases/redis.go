@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hfup/sunny/types"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -15,7 +16,7 @@ var (
 type RedisRouterFunc func(key string) (redis.UniversalClient, error)
 
 type RedisClientManagerInf interface {
-	types.SubServiceInf
+	types.RunAbleInf
 	GetClientFromKey(key string) (redis.UniversalClient, error)
 	SetRouterHandler(routerHandler RedisRouterFunc) // 设置路由方法
 }
@@ -24,8 +25,6 @@ type LocalRedisClientManager struct {
 	redisConfigs    []*types.RedisInfo
 	redisRouterFunc RedisRouterFunc
 	redisMap        map[string]redis.UniversalClient
-
-	defaultClient redis.UniversalClient
 }
 
 func NewLocalRedisClientManager(opt []*types.RedisInfo) *LocalRedisClientManager {
@@ -39,18 +38,21 @@ func (l *LocalRedisClientManager) SetRouterHandler(routerHandler RedisRouterFunc
 	l.redisRouterFunc = routerHandler
 }
 
-// 配置
-func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultChan chan<- types.Result[any]) {
+// Run 启动 redis 客户端管理器
+func (l *LocalRedisClientManager) Run(ctx context.Context, app any) error {
 	l.redisMap = make(map[string]redis.UniversalClient)
-
-	// 遍历配置 创建 redis 客户端
+	if len(l.redisConfigs) == 0 {
+		logrus.Warn("redis config is empty")
+		return nil
+	}
+	isSingle := len(l.redisConfigs) == 1
 	for _, redisConfig := range l.redisConfigs {
+		if isSingle && redisConfig.AreaKey == "" {
+			redisConfig.AreaKey = "default"
+		}
 		if redisConfig.AreaKey == "" {
-			resultChan <- types.Result[any]{
-				ErrCode: 1,
-				Message: "redis config key is empty, key: ",
-			}
-			return
+			logrus.Warn("redis config key is empty")
+			continue
 		}
 		var client redis.UniversalClient
 		var err error
@@ -62,32 +64,22 @@ func (l *LocalRedisClientManager) Start(ctx context.Context, args any, resultCha
 		}
 
 		if err != nil {
-			resultChan <- types.Result[any]{
-				ErrCode: 1,
-				Message: "redis connect error: " + err.Error(),
-			}
-			return
+			logrus.Error("redis connect error: " + err.Error())
+			return err
 		}
-
 		// 存储客户端到 map 中
 		l.redisMap[redisConfig.AreaKey] = client
-
-		if redisConfig.AreaKey == "default" {
-			l.defaultClient = client
-		}
 	}
-
-	resultChan <- types.Result[any]{
-		ErrCode: 0,
-		Message: "redis client manager start success",
-	}
+	return nil
 }
+
+func (l *LocalRedisClientManager) Description() string {
+	return "本地 Redis 客户端管理器"
+}
+
 
 // 获取 redis 客户端
 func (l *LocalRedisClientManager) GetClientFromKey(key string) (redis.UniversalClient, error) {
-	if key == "default" {
-		return l.defaultClient, nil
-	}
 	if l.redisRouterFunc != nil {
 		return l.redisRouterFunc(key)
 	}
