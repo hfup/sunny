@@ -205,6 +205,13 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.databaseClientManager = databaseClientManager
 	}
 
+	// 初始化 redis
+	if s.config.Redis != nil{
+		redisClientManager := databases.NewLocalRedisClientManager(s.config.Redis)
+		s.UseStartFunc(redisClientManager) // 资源初始化
+		s.redisManager = redisClientManager
+	}
+
 	// 初始化远程资源管理器
 	if s.remoteResourceManager != nil{
 		err = s.remoteResourceManager.Init(context.TODO(),s)

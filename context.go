@@ -46,21 +46,13 @@ func (c *Context) SetDB(db *gorm.DB) {
 }
 
 // 获取当前 redis 客户端
-func (c *Context) GetRedisClient() (redis.UniversalClient, error) {
+func (c *Context) GetRedis() (redis.UniversalClient, error) {
 	if c.curRedisClient == nil {
 		return nil, ErrRedisClientNotFound
 	}
 	return c.curRedisClient, nil
 }
 
-// 获取 redis 客户端
-func (c *Context) GetRedisClientFromKey(key string) (redis.UniversalClient, error) {
-	redisClient, err := c.GetRedisClient()
-	if err != nil {
-		return nil, err
-	}
-	return redisClient, nil
-}
 
 // 设置当前 redis 客户端
 func (c *Context) SetRedisClient(redisClient redis.UniversalClient) {
@@ -84,6 +76,10 @@ func (c *Context) GroupLabel() string {
 	return c.groupLabel
 }
 
+func (c *Context) AbortAction() {
+	c.actionNext = false
+}
+
 func (c *Context) Clone() *Context {
 	// 复制 gin.Context
 	ginCtx := c.Context.Copy()
@@ -94,6 +90,8 @@ func (c *Context) Clone() *Context {
 		roleLabel:   c.roleLabel,
 		groupLabel:  c.groupLabel,
 		actionLabel: c.actionLabel,
+		curRedisClient: c.curRedisClient,	
+
 	}
 	return newCtx
 }
