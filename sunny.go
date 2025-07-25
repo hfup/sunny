@@ -87,6 +87,8 @@ type Sunny struct {
 
 	grpcServices             []types.RegisterGrpcServiceInf
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
+	
+	grpcClientMaps map[string]*grpc.ClientConn // grpc 客户端连接映射
 
 
 
@@ -214,11 +216,13 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.UseStartFunc(redisClientManager) // 资源初始化
 		s.redisManager = redisClientManager
 	}
-
 	// 初始化远程资源管理器
 	if s.remoteResourceManager != nil{
 		err = s.remoteResourceManager.Init(context.TODO(),s)
 		if err != nil{
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Error("init remote resource manager error")
 			return err
 		}
 	}
