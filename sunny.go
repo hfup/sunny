@@ -18,6 +18,7 @@ import (
 	"github.com/go-redis/redis/v8"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gorm.io/gorm"
 
 	"fmt"
@@ -49,6 +50,7 @@ func GetApp() *Sunny{
 				asyncRunAbles: make([]types.RunAbleInf,0),
 				grpcServices: make([]types.RegisterGrpcServiceInf,0),
 				grpcServerInterceptorHandler: nil,
+				grpcClientMaps: make(map[string]*grpc.ClientConn),
 			}
 		})
 	}
@@ -89,6 +91,7 @@ type Sunny struct {
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
 	
 	grpcClientMaps map[string]*grpc.ClientConn // grpc 客户端连接映射
+	grpcClientMutex sync.RWMutex // grpc 客户端连接映射的读写锁
 
 
 
@@ -717,7 +720,33 @@ func (s *Sunny) getGroupKey(groupInfo GroupInf) string {
 //  - grpc 客户端
 //  - 错误
 func (s *Sunny) GetGrpcClient(grpcSrvMark string) (grpc.ClientConnInterface,error){
-	return  nil,errors.New("not implemented")
+	// 首先使用读锁检查连接是否已存在
+	s.grpcClientMutex.RLock()
+	if conn, exists := s.grpcClientMaps[grpcSrvMark]; exists {
+		s.grpcClientMutex.RUnlock()
+		return conn, nil
+	}
+	s.grpcClientMutex.RUnlock()
+	
+	// 使用写锁创建新连接
+	s.grpcClientMutex.Lock()
+	defer s.grpcClientMutex.Unlock()
+	
+	// 再次检查是否已存在（防止并发创建）
+	if conn, exists := s.grpcClientMaps[grpcSrvMark]; exists {
+		return conn, nil
+	}
+	
+	// 创建新的 grpc 连接，grpc.NewClient 会自动维护连接状态和重连
+	conn, err := grpc.NewClient(grpcSrvMark, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("创建 grpc 连接失败: %v", err)
+	}
+	
+	// 存储连接到 map 中
+	s.grpcClientMaps[grpcSrvMark] = conn
+	
+	return conn, nil
 }
 
 // 获取环境配置参数
