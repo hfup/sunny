@@ -422,6 +422,15 @@ func (r *RabbitMqManager) CreateConsumer(topic, queue string, opt any) (Consumer
 //   - ProducerInf 生产者接口
 //   - error 错误信息
 func (r *RabbitMqManager) CreateProducer(topic string, opt any) (ProducerInf, error) {
+	if opt == nil { // 默认配置
+		options := DefaultRabbitMQProducerOptions()
+		producer := &RabbitMQProducer{
+			topic:   topic,
+			options: options,
+			manager: r,
+		}
+		return producer, nil
+	}
 	options, ok := opt.(*RabbitMQProducerOptions)
 	if !ok {
 		return nil, fmt.Errorf("配置选项类型错误，期望 *RabbitMQProducerOptions")
@@ -432,7 +441,6 @@ func (r *RabbitMqManager) CreateProducer(topic string, opt any) (ProducerInf, er
 		options: options,
 		manager: r,
 	}
-	
 	return producer, nil
 }
 

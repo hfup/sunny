@@ -100,6 +100,7 @@ type LocalDatabaseClientManager struct {
 	dbConfigs []*types.DatabaseInfo
 	dbMap     map[string]*gorm.DB
 	dbRouterFunc DBRouterFunc
+	isDebug bool
 }
 
 // 本地数据库管理器
@@ -108,6 +109,10 @@ func NewLocalDatabaseClientManager(dbConfigs []*types.DatabaseInfo) *LocalDataba
 		dbConfigs: dbConfigs,
 		dbMap: make(map[string]*gorm.DB),
 	}
+}
+
+func (d *LocalDatabaseClientManager) SetDebug(isDebug bool) {
+	d.isDebug = isDebug
 }
 
 func (d *LocalDatabaseClientManager) SetRouterHandler(handler DBRouterFunc) {
@@ -131,6 +136,9 @@ func (d *LocalDatabaseClientManager) Run(ctx context.Context, app any) error {
 		db, err := MysqlConnect(dbConfig)
 		if err != nil {
 			return err
+		}
+		if d.isDebug {
+			db = db.Debug()
 		}
 		d.dbMap[dbConfig.AreaKey] = db
 	}

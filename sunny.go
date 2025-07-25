@@ -201,6 +201,9 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	// 初始化数据库
 	if len(s.config.Databases) > 0{
 		databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.Databases)
+		if s.config.DatabaseDebug { // 数据库调试模式
+			databaseClientManager.SetDebug(true)
+		}
 		s.UseStartFunc(databaseClientManager) // 资源初始化
 		s.databaseClientManager = databaseClientManager
 	}
@@ -501,6 +504,9 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 				}).Error("sync run able run error")
 				return err
 			}
+			logrus.WithFields(logrus.Fields{
+				"tip":runAble.Description(),
+			}).Info("sync run able run success")
 		}
 	}
 
@@ -814,4 +820,19 @@ func (s *Sunny) GetDefaultRedis() (redis.UniversalClient,error) {
 		return nil,errors.New("redis client manager is not set")
 	}
 	return s.redisManager.GetClientFromKey("default")
+}
+
+
+// 发布消息
+// 参数：
+//  - ctx 上下文
+//  - topic 主题
+//  - msg 消息
+// 返回：
+//  - 错误
+func (s *Sunny) Publish(ctx context.Context,topic string,msg []byte) error {
+	if s.mqsManager == nil{
+		return errors.New("mq manager is not set")
+	}
+	return s.mqsManager.Publish(ctx,topic,msg)
 }
