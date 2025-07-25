@@ -33,7 +33,8 @@ func NewRemoteResourceManager(handler ResourcesHandlerFunc) *RemoteResourceManag
 	}
 }
 
-// 启动远程资源获取器
+
+// 启动远程资源获取器 同时初始化 数据库管理器/redis管理器/mq管理器
 // 参数：
 //  - ctx 上下文
 //  - args 参数
@@ -53,6 +54,9 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 	}
 	if len(resourcesInfo.Databases) > 0{
 		databaseClientManager := databases.NewLocalDatabaseClientManager(resourcesInfo.Databases)
+		if app.config.DatabaseDebug { // 数据库调试模式
+			databaseClientManager.SetDebug(true)
+		}
 		app.SetDatabaseClientManager(databaseClientManager)
 		app.UseStartFunc(databaseClientManager)
 	}

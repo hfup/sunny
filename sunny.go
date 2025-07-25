@@ -823,6 +823,14 @@ func (s *Sunny) GetDefaultRedis() (redis.UniversalClient,error) {
 }
 
 
+// 获取 redis 客户端
+func (s *Sunny) GetRedis(key string) (redis.UniversalClient,error) {
+	if s.redisManager == nil{
+		return nil,errors.New("redis client manager is not set")
+	}
+	return s.redisManager.GetClientFromKey(key)
+}
+
 // 发布消息
 // 参数：
 //  - ctx 上下文
