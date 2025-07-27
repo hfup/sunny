@@ -74,7 +74,9 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		app.AddSubServices(mqManager)
 	}
 	if resourcesInfo.CloudStorage != nil{
-		
+		if resourcesInfo.CloudStorage.StorageType == "cos"{
+			
+		}
 	}
 	return nil
 }

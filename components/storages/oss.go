@@ -3,21 +3,10 @@ package storages
 import (
 	"io"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
+	"github.com/hfup/sunny/types"
 
-	"sync"
 	"context"
 )
-
-
-type OssInfo struct {
-	Region string `json:"region"`
-	AccessKeyId string `json:"access_key_id"`
-	AccessKeySecret string `json:"access_key_secret"`
-	Bucket string `json:"bucket"`
-}
-
-type GetOssInfoFunc func() (*OssInfo,error) // 获取oss信息函数
-
 
 // 创建oss存储
 // 参数：
@@ -25,21 +14,16 @@ type GetOssInfoFunc func() (*OssInfo,error) // 获取oss信息函数
 //  - getOssInfoFunc 获取oss信息函数
 // 返回：
 //  - oss存储
-func NewOssStorage(bucketLabel string,getOssInfoFunc GetOssInfoFunc) *OssStorage {
+func NewOssStorage(ossInfo *types.CloudStorageConf) *OssStorage {
 	return &OssStorage{
-		bucketLabel: bucketLabel,
-		getOssInfoFunc: getOssInfoFunc,
+		ossInfo: ossInfo,
 	}
 }
 
 
 type OssStorage struct {
-	bucketLabel string	// 桶标签
-	ossInfo *OssInfo	// oss信息
+	ossInfo *types.CloudStorageConf	// oss信息
 	ossClient *oss.Client	// oss客户端
-	getOssInfoFunc GetOssInfoFunc // 获取oss信息函数
-
-	mu sync.Mutex
 }
 
 
@@ -48,24 +32,12 @@ func (o *OssStorage) getClient() (*oss.Client, error) {
 	if o.ossClient != nil {
 		return o.ossClient, nil
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
 	// double check
 	if o.ossClient != nil {
 		return o.ossClient, nil
 	}
-
-	if o.ossInfo == nil {
-		// 网络请求 grpc
-		ossInfo,err:=o.getOssInfoFunc()
-		if err != nil {
-			return nil,err
-		}
-		o.ossInfo = ossInfo
-	}
 	endpoint := "https://" + o.ossInfo.Region + ".aliyuncs.com"
-	client, err := oss.New(endpoint, o.ossInfo.AccessKeyId, o.ossInfo.AccessKeySecret)
+	client, err := oss.New(endpoint, o.ossInfo.SecretId, o.ossInfo.SecretKey)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +47,7 @@ func (o *OssStorage) getClient() (*oss.Client, error) {
 
 
 func (o *OssStorage) GetType() string {	
-	return o.bucketLabel
+	return "oss"
 }
 
 // 上传文件

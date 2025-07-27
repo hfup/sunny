@@ -93,7 +93,7 @@ type Sunny struct {
 	
 	grpcClientMaps map[string]*grpc.ClientConn // grpc 客户端连接映射
 	grpcClientMutex sync.RWMutex // grpc 客户端连接映射的读写锁
-	storageManager *storages.StorageManger
+	storager storages.StorageInf  // 存储管理器
 
 
 
@@ -882,9 +882,9 @@ func (s *Sunny) Publish(ctx context.Context,topic string,msg []byte) error {
 
 
 // 获取存储管理器
-func (s *Sunny) GetStorageManger() (*storages.StorageManger,error) {
-	if s.storageManager == nil{
+func (s *Sunny) GetStorageManger() (storages.StorageInf,error) {
+	if s.storager == nil{
 		return nil,errors.New("storage manager is not set")
 	}	
-	return s.storageManager, nil
+	return s.storager, nil
 }

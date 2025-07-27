@@ -6,20 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 
+	"github.com/hfup/sunny/types"
 	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
-
-type CosInfo struct {
-	Region string `json:"region"`
-	SecretId string `json:"secret_id"`
-	SecretKey string `json:"secret_key"`
-	Bucket string `json:"bucket"`
-}
-
-type GetCosInfoFunc func() (*CosInfo,error) // 获取桶信息函数
 
 
 // 创建cos存储
@@ -28,24 +19,20 @@ type GetCosInfoFunc func() (*CosInfo,error) // 获取桶信息函数
 //  - getCosInfoFunc 获取桶信息函数
 // 返回：
 //  - cos存储
-func NewCosStorage(bucketLabel string,getCosInfoFunc GetCosInfoFunc) *CosStorage {
+func NewCosStorage(cosInfo *types.CloudStorageConf) *CosStorage {
 	return &CosStorage{
-		bucketLabel: bucketLabel,
-		getCosInfoFunc: getCosInfoFunc,
+		cosInfo: cosInfo,
 	}
 }
 
-type CosStorage struct {
-	bucketLabel string	// 桶标签
-	cosInfo *CosInfo	// 桶信息
-	cosClient *cos.Client	// 桶客户端
-	getCosInfoFunc GetCosInfoFunc // 获取桶信息函数
 
-	mu sync.Mutex
+type CosStorage struct {
+	cosInfo *types.CloudStorageConf	// 桶信息
+	cosClient *cos.Client	// 桶客户端
 }
 
 func (c *CosStorage) GetType() string {
-	return c.bucketLabel
+	return "cos"
 }
 
 
@@ -53,20 +40,6 @@ func (c *CosStorage) GetType() string {
 func (cs *CosStorage) getBucketClient() (*cos.Client,error) {
 	if cs.cosClient != nil {
 		return cs.cosClient,nil
-	}
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	// double check
-	if cs.cosClient != nil {
-		return cs.cosClient,nil
-	}
-	if cs.cosInfo == nil {
-		// 从grpc 获取
-		cosInfo,err:=cs.getCosInfoFunc()
-		if err!=nil{
-			return nil,err
-		}
-		cs.cosInfo = cosInfo
 	}
 	uri:=fmt.Sprintf("https://%s.cos.%s.myqcloud.com",cs.cosInfo.Bucket,cs.cosInfo.Region)
 	url,err:=url.Parse(uri)
