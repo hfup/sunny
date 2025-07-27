@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hfup/sunny/types"
 	"github.com/hfup/sunny/components/databases"
 	"github.com/hfup/sunny/components/mqs"
+	"github.com/hfup/sunny/types"
 )
 
 type ResourcesInfo struct {
 	Redis []*types.RedisInfo `yaml:"redis" json:"redis"`
 	Databases []*types.DatabaseInfo `yaml:"databases" json:"databases"`
 	Mq *types.MqConfig `yaml:"mq" json:"mq"`
+	
 }
  
 type ResourcesHandlerFunc func(ctx context.Context,serviceMark string) (*ResourcesInfo,error)
@@ -43,6 +44,7 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 	if app.serviceMark == "" {
 		return errors.New("service mark is empty")
 	}
+	//logrus.Info("当前 service mark:",app.serviceMark)
 	resourcesInfo,err := r.handler(ctx,app.serviceMark)
 	if err != nil{
 		return err

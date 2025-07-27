@@ -95,3 +95,13 @@ type KafkaConfig struct {
 	SASLUsername string `yaml:"sasl_username" json:"sasl_username"` // SASL 用户名
 	SASLPassword string `yaml:"sasl_password" json:"sasl_password"` // SASL 密码
 }
+
+// 云存储配置
+type CloudStorageConf struct {
+	StorageType string `yaml:"storage_type" json:"storage_type"` // 云存储类型 oss cos
+	SecretId string `yaml:"secret_id" json:"secret_id"` // 云存储 secret id oss-> access_key_id
+	SecretKey string `yaml:"secret_key" json:"secret_key"` // 云存储 secret key oss-> access_key_secret
+	Bucket string `yaml:"bucket" json:"bucket"` // 云存储 bucket
+	Region string `yaml:"region" json:"region"` // 云存储 region
+	Domain string `yaml:"domain" json:"domain"` // 云存储 domain
+}
