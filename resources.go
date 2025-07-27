@@ -13,7 +13,7 @@ type ResourcesInfo struct {
 	Redis []*types.RedisInfo `yaml:"redis" json:"redis"`
 	Databases []*types.DatabaseInfo `yaml:"databases" json:"databases"`
 	Mq *types.MqConfig `yaml:"mq" json:"mq"`
-	
+	CloudStorage *types.CloudStorageConf `yaml:"cloud_storage" json:"cloud_storage"`
 }
  
 type ResourcesHandlerFunc func(ctx context.Context,serviceMark string) (*ResourcesInfo,error)
@@ -72,6 +72,9 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		}
 		app.SetMqManager(mqManager)
 		app.AddSubServices(mqManager)
+	}
+	if resourcesInfo.CloudStorage != nil{
+		
 	}
 	return nil
 }
