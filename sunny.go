@@ -880,7 +880,6 @@ func (s *Sunny) Publish(ctx context.Context,topic string,msg []byte) error {
 	return s.mqsManager.Publish(ctx,topic,msg)
 }
 
-
 // 获取存储管理器
 func (s *Sunny) GetStorager() (storages.StorageInf,error) {
 	if s.storager == nil{
@@ -888,7 +887,6 @@ func (s *Sunny) GetStorager() (storages.StorageInf,error) {
 	}	
 	return s.storager, nil
 }
-
 
 // 绑定存储管理器
 func (s *Sunny) SetStorager(storager storages.StorageInf) {
