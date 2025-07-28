@@ -6,7 +6,10 @@ import (
 
 	"github.com/hfup/sunny/components/databases"
 	"github.com/hfup/sunny/components/mqs"
+	"github.com/hfup/sunny/components/storages"
 	"github.com/hfup/sunny/types"
+
+	"github.com/sirupsen/logrus"
 )
 
 type ResourcesInfo struct {
@@ -74,9 +77,27 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		app.AddSubServices(mqManager)
 	}
 	if resourcesInfo.CloudStorage != nil{
-		if resourcesInfo.CloudStorage.StorageType == "cos"{
-			
+		switch resourcesInfo.CloudStorage.StorageType {
+		case "cos":
+			cos:=storages.NewCosStorage(&types.CloudStorageConf{
+				SecretId: resourcesInfo.CloudStorage.SecretId,
+				SecretKey: resourcesInfo.CloudStorage.SecretKey,
+				Bucket: resourcesInfo.CloudStorage.Bucket,
+				Region: resourcesInfo.CloudStorage.Region,
+			})
+			app.SetStorager(cos)
+		case "oss":
+			oss:=storages.NewOssStorage(&types.CloudStorageConf{
+				SecretId: resourcesInfo.CloudStorage.SecretId,
+				SecretKey: resourcesInfo.CloudStorage.SecretKey,
+				Bucket: resourcesInfo.CloudStorage.Bucket,
+				Region: resourcesInfo.CloudStorage.Region,
+			})
+			app.SetStorager(oss)
+		default:
+			logrus.Error("cloud storage type not support")
 		}
+
 	}
 	return nil
 }

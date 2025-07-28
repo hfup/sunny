@@ -882,9 +882,15 @@ func (s *Sunny) Publish(ctx context.Context,topic string,msg []byte) error {
 
 
 // 获取存储管理器
-func (s *Sunny) GetStorageManger() (storages.StorageInf,error) {
+func (s *Sunny) GetStorager() (storages.StorageInf,error) {
 	if s.storager == nil{
 		return nil,errors.New("storage manager is not set")
 	}	
 	return s.storager, nil
+}
+
+
+// 绑定存储管理器
+func (s *Sunny) SetStorager(storager storages.StorageInf) {
+	s.storager = storager
 }
