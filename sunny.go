@@ -80,7 +80,7 @@ type Sunny struct {
 	rolesAfterHandlers map[string][]ActionHandlerWithOrder // 角色后置处理器
 
 	subServices []types.SubServiceInf
-	redisClient redis.UniversalClient // redis 客户端
+	uniqueRedisClient redis.UniversalClient // 唯一ID 生成器 redis 客户端
 
 	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
@@ -618,11 +618,6 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 }
 
 
-// 获取 redis 客户端
-func (s *Sunny) GetRedisClient() redis.UniversalClient{
-	return s.redisClient
-}
-
 
 // 设置 grpc 拦截器
 // 参数：
@@ -891,4 +886,14 @@ func (s *Sunny) GetStorager() (storages.StorageInf,error) {
 // 绑定存储管理器
 func (s *Sunny) SetStorager(storager storages.StorageInf) {
 	s.storager = storager
+}
+
+
+// 唯一ID 生成器 和 全局锁 ID 和 缓存redis 客户端 作区分
+// 这里是获取 唯一ID 生成器 redis 客户端
+func (s *Sunny) GetUniqueRedis() (redis.UniversalClient,error) {
+	if s.uniqueRedisClient == nil{
+		return nil,errors.New("unique redis client is not set")
+	}
+	return s.uniqueRedisClient, nil
 }
