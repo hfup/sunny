@@ -17,6 +17,7 @@ type ResourcesInfo struct {
 	Databases []*types.DatabaseInfo `yaml:"databases" json:"databases"`
 	Mq *types.MqConfig `yaml:"mq" json:"mq"`
 	CloudStorage *types.CloudStorageConf `yaml:"cloud_storage" json:"cloud_storage"`
+	UniqueRedis *types.RedisInfo 
 }
  
 type ResourcesHandlerFunc func(ctx context.Context,serviceMark string) (*ResourcesInfo,error)
@@ -97,7 +98,15 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		default:
 			logrus.Error("cloud storage type not support")
 		}
-
+	}
+	
+	// 处理下 unique redis
+	if resourcesInfo.UniqueRedis != nil{
+		uniqueRedisClient,err := databases.RedisConnect(resourcesInfo.UniqueRedis)
+		if err != nil{
+			return err
+		}
+		app.SetUniqueRedisClient(uniqueRedisClient)
 	}
 	return nil
 }

@@ -897,3 +897,8 @@ func (s *Sunny) GetUniqueRedis() (redis.UniversalClient,error) {
 	}
 	return s.uniqueRedisClient, nil
 }
+
+// 绑定唯一ID 生成器 redis 客户端
+func (s *Sunny) SetUniqueRedisClient(client redis.UniversalClient) {
+	s.uniqueRedisClient = client
+}
