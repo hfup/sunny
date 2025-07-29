@@ -18,6 +18,7 @@ type ResourcesInfo struct {
 	Mq *types.MqConfig `yaml:"mq" json:"mq"`
 	CloudStorage *types.CloudStorageConf `yaml:"cloud_storage" json:"cloud_storage"`
 	UniqueRedis *types.RedisInfo 
+	GaodeKey string `yaml:"gaode_key" json:"gaode_key"` // 高德地图key 
 }
  
 type ResourcesHandlerFunc func(ctx context.Context,serviceMark string) (*ResourcesInfo,error)
