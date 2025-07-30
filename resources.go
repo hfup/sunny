@@ -80,7 +80,7 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 	}
 	if resourcesInfo.CloudStorage != nil{
 		switch resourcesInfo.CloudStorage.StorageType {
-		case "tencemt_cos":
+		case "tencent_cos":
 			cos:=storages.NewCosStorage(&types.CloudStorageConf{
 				SecretId: resourcesInfo.CloudStorage.SecretId,
 				SecretKey: resourcesInfo.CloudStorage.SecretKey,
