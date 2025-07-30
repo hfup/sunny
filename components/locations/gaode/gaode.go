@@ -1,4 +1,4 @@
-package locations
+package gaode
 
 import (
 	"encoding/json"

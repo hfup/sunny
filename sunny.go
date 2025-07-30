@@ -750,6 +750,12 @@ func (s *Sunny) GetGrpcClient(grpcSrvMark string) (grpc.ClientConnInterface,erro
 // 参数:
 // - key 
 func (s *Sunny) GetEnvArgs(key string) (string,bool) {
+	if s.config.EnvArgs == nil{
+		return "",false
+	}
+	if value,ok := s.config.EnvArgs[key];ok{
+		return value,true
+	}
 	return "",false
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hfup/sunny/types"
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
@@ -20,6 +21,9 @@ func MysqlConnect(dataInfo *types.DatabaseInfo) (*gorm.DB, error) {
 	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local",
 		dataInfo.User, dataInfo.Password, dataInfo.Host, dataInfo.Port, dataInfo.DbName, dataInfo.Charset)
+	logrus.WithFields(logrus.Fields{
+		"dsn": dsn,
+	}).Info("mysql connect .....")
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
