@@ -33,7 +33,7 @@ func NewJwt() *Jwt {
 	}
 }
 
-
+// 设置 jwt 密钥 初始化的时候
 func (j *Jwt) SetKeys(currentKeyIndex int,keysChain [9][]byte) error{
 	if currentKeyIndex < 0 || currentKeyIndex >= 9 {
 		return errors.New("currentKeyIndex out of range")
@@ -269,6 +269,10 @@ func (j *JwtKeyManager) GetKeyByIndex(index int) ([]byte, error) {
 		return nil, errors.New("index out of range")
 	}
 	return j.keysChain[index], nil
+}
+
+func (j *JwtKeyManager) GetKeysChain() [9][]byte {
+	return j.keysChain
 }
 
 

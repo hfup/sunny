@@ -52,6 +52,7 @@ func GetApp() *Sunny{
 				grpcServices: make([]types.RegisterGrpcServiceInf,0),
 				grpcServerInterceptorHandler: nil,
 				grpcClientMaps: make(map[string]*grpc.ClientConn),
+				jwt: auths.NewJwt(),
 			}
 		})
 	}
@@ -95,6 +96,8 @@ type Sunny struct {
 	grpcClientMutex sync.RWMutex // grpc 客户端连接映射的读写锁
 	storager storages.StorageInf  // 存储管理器
 
+	jwt *auths.Jwt // jwt 签名器
+
 
 
 	consumerFactories []mqs.ConsumerFactory // 消费者工厂 要延迟处理
@@ -125,6 +128,11 @@ type Sunny struct {
 //  - 错误
 func (s *Sunny) SetServiceMark(serviceMark string) {
 	s.serviceMark = serviceMark
+}
+
+
+func (s *Sunny) GetServiceMark() string {
+	return s.serviceMark
 }
 
 // 设置 redis 管理器
@@ -907,4 +915,20 @@ func (s *Sunny) GetUniqueRedis() (redis.UniversalClient,error) {
 // 绑定唯一ID 生成器 redis 客户端
 func (s *Sunny) SetUniqueRedisClient(client redis.UniversalClient) {
 	s.uniqueRedisClient = client
+}
+
+// 更新 jwt 密钥
+func (s *Sunny) UpdateJwtKey(key []byte,index int) error {
+	return s.jwt.UpdateKey(key,index)
+}
+
+// 生成 jwt 签名
+func (s *Sunny) GenerateJwtSignature(data map[string]string) (*auths.JwtSignerResult,error) {
+	return s.jwt.GenerateSignature(data)
+}
+
+
+// 获取 jwt 签名器
+func (s *Sunny) GetJwt() *auths.Jwt {
+	return s.jwt
 }
