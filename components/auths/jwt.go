@@ -5,9 +5,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/hfup/sunny/types"
@@ -39,17 +39,15 @@ func NewJwt() *Jwt {
 // 返回:
 //   - string 签名结果
 //   - error 错误信息
-func (j *Jwt) GenerateSignature(data map[string]any) (*JwtSignerResult, error) {
+func (j *Jwt) GenerateSignature(data map[string]string) (*JwtSignerResult, error) {
 	// 获取当前密钥
 	key, err := j.GetKey(j.currentKeyIndex)
 	if err != nil {
 		return nil, err
 	}
 	// 对 map 进行字典排序并转换为字符串
-	sortedStr, err := j.sortMapToString(data)
-	if err != nil {
-		return nil, err
-	}
+	sortedStr := j.sortMapToString(data)
+	
 	// 使用 HMAC-SHA256 生成签名
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(sortedStr))
@@ -65,11 +63,10 @@ func (j *Jwt) GenerateSignature(data map[string]any) (*JwtSignerResult, error) {
 
 // sortMapToString 将 map 按字典序排序并转换为字符串
 // 参数:
-//   - data: map[string]any 要排序的数据
+//   - data: map[string]string 要排序的数据
 // 返回:
 //   - string 排序后的字符串
-//   - error 错误信息
-func (j *Jwt) sortMapToString(data map[string]any) (string, error) {
+func (j *Jwt) sortMapToString(data map[string]string) string {
 	// 获取所有键并排序
 	keys := make([]string, 0, len(data))
 	for k := range data {
@@ -77,19 +74,20 @@ func (j *Jwt) sortMapToString(data map[string]any) (string, error) {
 	}
 	sort.Strings(keys)
 
-	// 构建排序后的 map
-	sortedMap := make(map[string]any)
-	for _, k := range keys {
-		sortedMap[k] = data[k]
+	// 按排序后的键顺序构建 key=value&key=value 格式的字符串
+	var result strings.Builder
+	
+	for i, k := range keys {
+		if i > 0 {
+			result.WriteString("&")
+		}
+		
+		result.WriteString(k)
+		result.WriteString("=")
+		result.WriteString(data[k])
 	}
-
-	// 转换为 JSON 字符串
-	jsonBytes, err := json.Marshal(sortedMap)
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonBytes), nil
+	
+	return result.String()
 }
 
 
@@ -156,9 +154,9 @@ type JwtKeyManager struct {
 	keyUpdatePeriod time.Duration // 密钥更新周期
 	currentKeyIndex int // 当前密钥索引
 	keyUpdateHandler KeyUpdateHandler // 密钥更新处理函数
-	keysChain [][]byte // 密钥链
-	chainCapacity int // 密钥链容量
+	keysChain [9][]byte // 密钥链，固定容量为9
 	keyInitHandler KeyInitHandler // 密钥初始化处理函数
+	keyCount int // 已初始化的密钥数量
 }
 
 // KeyUpdateHandler 密钥更新处理函数
@@ -185,24 +183,23 @@ type KeyInitHandler func(ctx context.Context) ([][]byte,int,error)
 
 // NewJwtKeyManager 创建密钥管理器
 // 参数:
-//   - chainCapacity: 密钥链容量
 //   - keyUpdatePeriod: 密钥更新周期
 //   - keyInitHandler: 密钥初始化处理函数
 //   - keyUpdateHandler: 密钥更新处理函数
 // 返回:
 //   - *JwtKeyManager 密钥管理器
-func NewJwtKeyManager(chainCapacity int,keyUpdatePeriod time.Duration,keyInitHandler KeyInitHandler,keyUpdateHandler KeyUpdateHandler) *JwtKeyManager {
+func NewJwtKeyManager(keyUpdatePeriod time.Duration,keyInitHandler KeyInitHandler,keyUpdateHandler KeyUpdateHandler) *JwtKeyManager {
 	return &JwtKeyManager{
 		keyUpdatePeriod: keyUpdatePeriod,
 		keyInitHandler: keyInitHandler,
 		keyUpdateHandler: keyUpdateHandler,
-		chainCapacity: chainCapacity,
-		keysChain: make([][]byte,0,chainCapacity),
+		currentKeyIndex: 0,
+		keyCount: 0,
 	}
 }
 
 func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- types.Result[any]) {
-	// 初始化密钥
+	// 初始化密钥 存在重启的情况
 	keyList,index,err := j.keyInitHandler(ctx) // 这里的返回的排序 asc 
 	if err != nil {
 		resultChan <- types.Result[any]	{
@@ -213,17 +210,26 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 		return
 	}
 	if len(keyList) > 0  {
-		// 这里要判断 最大取 j.chainCapacity 个
-		if len(keyList) > j.chainCapacity {
-			keyList = keyList[:j.chainCapacity]
+		// 初始化密钥链，最多取9个
+		for i, key := range keyList {
+			if i >= 9 {
+				break
+			}
+			j.keysChain[i] = key
+			j.keyCount++
 		}
-		j.keysChain = append(j.keysChain, keyList...)
-		j.currentKeyIndex = index
-
+		// 确保索引在有效范围内
+		if index >= 0 && index < j.keyCount {
+			j.currentKeyIndex = index
+		} else {
+			j.currentKeyIndex = 0
+		}
 	}else{
+		// 没有密钥时生成第一个
 		key := utils.RandBytes(32)
-		j.keysChain = append(j.keysChain, key)
+		j.keysChain[0] = key
 		j.currentKeyIndex = 0
+		j.keyCount = 1
 
 		// 更新密钥
 		err = j.keyUpdateHandler(ctx,key,j.currentKeyIndex)
@@ -238,8 +244,8 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 	}
 
 	if j.keyUpdatePeriod == 0 {
-		// 默认 7 天
-		j.keyUpdatePeriod = 7 * 24 * time.Hour
+		// 默认 3 天 
+		j.keyUpdatePeriod = 3 * 24 * time.Hour
 	}
 
 	ticker := time.NewTicker(j.keyUpdatePeriod) // 定时器
@@ -250,36 +256,19 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// 更新密钥
+			// 添加新密钥，使用循环索引
 			newKey := utils.RandBytes(32)
 			
-			// 确保 keysChain 已初始化且长度足够
-			if len(j.keysChain) == 0 {
-				logrus.WithFields(logrus.Fields{
-					"service": "jwt_key_manager",
-				}).Error("keysChain 为空，无法更新密钥")
-				continue
-			}
+			// 计算下一个索引：当前索引+1，超过8就从0开始
+			nextIndex := (j.currentKeyIndex + 1) % 9
 			
-			// 先判断当前激活的index 是否是最后一个
-			if j.currentKeyIndex >= len(j.keysChain) - 1 {
-				// 是最后一个 则更新为第一个
-				j.currentKeyIndex = 0
-			}else{
-				// 不是最后一个 则更新为下一个
-				j.currentKeyIndex++
-			}
+			// 设置新密钥
+			j.keysChain[nextIndex] = newKey
+			j.currentKeyIndex = nextIndex
 			
-			// 确保索引在有效范围内
-			if j.currentKeyIndex >= 0 && j.currentKeyIndex < len(j.keysChain) {
-				j.keysChain[j.currentKeyIndex] = newKey
-			} else {
-				logrus.WithFields(logrus.Fields{
-					"service": "jwt_key_manager",
-					"index": j.currentKeyIndex,
-					"chainLen": len(j.keysChain),
-				}).Error("密钥索引超出范围")
-				continue
+			// 如果还没有填满9个位置，增加计数
+			if j.keyCount < 9 && nextIndex >= j.keyCount {
+				j.keyCount = nextIndex + 1
 			}
 
 			err = j.keyUpdateHandler(ctx,newKey,j.currentKeyIndex) // 更新密钥
@@ -287,6 +276,7 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 				logrus.WithFields(logrus.Fields{
 					"err": err,
 					"service": "jwt_key_manager",
+					"nextIndex": nextIndex,
 				}).Warn("更新密钥失败")
 			}
 		}
@@ -303,6 +293,9 @@ func (j *JwtKeyManager) ServiceName() string {
 
 
 func (j *JwtKeyManager) GetCurrentKey() []byte {
+	if j.keyCount == 0 {
+		return nil
+	}
 	return j.keysChain[j.currentKeyIndex]
 }
 
@@ -311,9 +304,37 @@ func (j *JwtKeyManager) GetCurrentKeyIndex() int {
 }
 
 func (j *JwtKeyManager) GetKeysChain() [][]byte {
-	return j.keysChain
+	result := make([][]byte, j.keyCount)
+	for i := 0; i < j.keyCount; i++ {
+		result[i] = j.keysChain[i]
+	}
+	return result
 }
 
 func (j *JwtKeyManager) GetKeysChainCapacity() int {
-	return j.chainCapacity
+	return 9
+}
+
+// GetKeyCount 获取已初始化的密钥数量
+// 返回:
+//   - int 已初始化的密钥数量
+func (j *JwtKeyManager) GetKeyCount() int {
+	return j.keyCount
+}
+
+// GetKeyByIndex 获取指定索引的密钥
+// 参数:
+//   - index: 密钥索引
+// 返回:
+//   - []byte 密钥
+//   - error 错误信息
+func (j *JwtKeyManager) GetKeyByIndex(index int) ([]byte, error) {
+	if index < 0 || index >= j.keyCount {
+		return nil, errors.New("index out of range")
+	}
+	key := j.keysChain[index]
+	if key == nil {	
+		return nil, errors.New("key is nil")
+	}
+	return key, nil
 }

@@ -49,7 +49,6 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 	if app.serviceMark == "" {
 		return errors.New("service mark is empty")
 	}
-	//logrus.Info("当前 service mark:",app.serviceMark)
 	resourcesInfo,err := r.handler(ctx,app.serviceMark)
 	if err != nil{
 		return err
