@@ -21,6 +21,97 @@ type JwtSignerResult struct {
 }
 
 
+type Jwt struct {
+	currentKeyIndex int
+	keysChain [9][]byte
+}
+
+func NewJwt() *Jwt {
+	return &Jwt{
+		currentKeyIndex: 0,
+		keysChain: [9][]byte{},
+	}
+}
+
+
+func (j *Jwt) SetKeys(currentKeyIndex int,keysChain [9][]byte) error{
+	if currentKeyIndex < 0 || currentKeyIndex >= 9 {
+		return errors.New("currentKeyIndex out of range")
+	}
+	if len(keysChain) != 9 {
+		return errors.New("keysChain length is not 9")
+	}
+	j.currentKeyIndex = currentKeyIndex
+	j.keysChain = keysChain
+	return nil
+}
+
+
+// 更新密钥
+func (j *Jwt) UpdateKey(key []byte,index int) error{
+	if index < 0 || index >= 9 {
+		return errors.New("index out of range")
+	}
+	j.keysChain[index] = key
+	return nil
+}
+
+func (j *Jwt) GetKeyByIndex(index int) ([]byte, error) {
+	if index < 0 || index >= 9 {
+		return nil, errors.New("index out of range")
+	}
+	return j.keysChain[index], nil
+}
+
+func (j *Jwt) GenerateSignature(data map[string]string) (*JwtSignerResult, error) {
+	curentIndex := j.currentKeyIndex
+	// 获取当前密钥
+	key, err := j.GetKeyByIndex(curentIndex)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, errors.New("key is nil")
+	}
+	// 对 map 进行字典排序并转换为字符串
+	sortedStr := j.sortMapToString(data)
+	// 使用 HMAC-SHA256 生成签名
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(sortedStr))
+	signature := h.Sum(nil)
+
+	return &JwtSignerResult{
+		Signature: hex.EncodeToString(signature),
+		KeyIndex:  curentIndex,
+	}, nil
+}
+
+func (j *Jwt) sortMapToString(data map[string]string) string {
+	// 获取所有键并排序
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// 按排序后的键顺序构建 key=value&key=value 格式的字符串
+	var result strings.Builder
+	
+	for i, k := range keys {
+		if i > 0 {
+			result.WriteString("&")
+		}
+		result.WriteString(k)
+		result.WriteString("=")
+		result.WriteString(data[k])
+	}
+	
+	return result.String()
+}
+
+
+
+
 
 // JwtKeyManager 密钥管理器
 type JwtKeyManager struct {
@@ -180,50 +271,4 @@ func (j *JwtKeyManager) GetKeyByIndex(index int) ([]byte, error) {
 	return j.keysChain[index], nil
 }
 
-
-// GenerateSignature 生成签名
-func (j *JwtKeyManager) GenerateSignature(data map[string]string) (*JwtSignerResult, error) {
-	// 获取当前密钥
-	key, err := j.GetKeyByIndex(j.currentKeyIndex)
-	if err != nil {
-		return nil, err
-	}
-	// 对 map 进行字典排序并转换为字符串
-	sortedStr := j.sortMapToString(data)
-	// 使用 HMAC-SHA256 生成签名
-	h := hmac.New(sha256.New, key)
-	h.Write([]byte(sortedStr))
-	signature := h.Sum(nil)
-
-	// 返回十六进制编码的签名
-	return &JwtSignerResult{
-		Signature: hex.EncodeToString(signature),
-		KeyIndex:  j.currentKeyIndex,
-	}, nil
-}
-
-
-func (j *JwtKeyManager) sortMapToString(data map[string]string) string {
-	// 获取所有键并排序
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	// 按排序后的键顺序构建 key=value&key=value 格式的字符串
-	var result strings.Builder
-	
-	for i, k := range keys {
-		if i > 0 {
-			result.WriteString("&")
-		}
-		
-		result.WriteString(k)
-		result.WriteString("=")
-		result.WriteString(data[k])
-	}
-	
-	return result.String()
-}
 
