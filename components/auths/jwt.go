@@ -21,133 +21,6 @@ type JwtSignerResult struct {
 }
 
 
-type Jwt struct {
-	keyChain [][]byte // 
-	currentKeyIndex int
-}
-
-func NewJwt() *Jwt {
-	return &Jwt{
-		keyChain: make([][]byte,0),
-		currentKeyIndex: 0,
-	}
-}
-
-// GenerateSignature 生成签名
-// 参数:
-//   - data: 要签名的数据
-// 返回:
-//   - string 签名结果
-//   - error 错误信息
-func (j *Jwt) GenerateSignature(data map[string]string) (*JwtSignerResult, error) {
-	// 获取当前密钥
-	key, err := j.GetKey(j.currentKeyIndex)
-	if err != nil {
-		return nil, err
-	}
-	// 对 map 进行字典排序并转换为字符串
-	sortedStr := j.sortMapToString(data)
-	
-	// 使用 HMAC-SHA256 生成签名
-	h := hmac.New(sha256.New, key)
-	h.Write([]byte(sortedStr))
-	signature := h.Sum(nil)
-
-	// 返回十六进制编码的签名
-	return &JwtSignerResult{
-		Signature: hex.EncodeToString(signature),
-		KeyIndex:  j.currentKeyIndex,
-	}, nil
-}
-
-
-// sortMapToString 将 map 按字典序排序并转换为字符串
-// 参数:
-//   - data: map[string]string 要排序的数据
-// 返回:
-//   - string 排序后的字符串
-func (j *Jwt) sortMapToString(data map[string]string) string {
-	// 获取所有键并排序
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	// 按排序后的键顺序构建 key=value&key=value 格式的字符串
-	var result strings.Builder
-	
-	for i, k := range keys {
-		if i > 0 {
-			result.WriteString("&")
-		}
-		
-		result.WriteString(k)
-		result.WriteString("=")
-		result.WriteString(data[k])
-	}
-	
-	return result.String()
-}
-
-
-// Reset 重置密钥链
-// 参数:
-//   - keyChain: 密钥链
-//   - currentKeyIndex: 当前密钥索引
-// 返回:
-//   - error 错误信息
-func (j *Jwt) Reset(keyChain [][]byte,currentKeyIndex int) error{
-	if currentKeyIndex > len(keyChain) - 1  {
-		return errors.New("currentKeyIndex out of range")
-	}
-	j.keyChain = keyChain
-	j.currentKeyIndex = currentKeyIndex
-	return nil
-}
-
-
-// AddNewKey 添加新密钥
-// 如果 index 大于 当前密钥链长度,则直接添加到末尾
-// 如果 index 小于 当前密钥链长度,则替换当前索引的密钥
-// 参数:
-//   - key: 新密钥
-//   - index: 新密钥索引
-// 返回:
-//   - error 错误信息
-func (j *Jwt) AddNewKey(key []byte,index int) error{
-	if index < 0 {
-		return errors.New("index out of range")
-	}
-	if index >= len(j.keyChain) {
-		j.keyChain = append(j.keyChain, key)
-	}else{
-		j.keyChain[index] = key
-	}
-	j.currentKeyIndex = index
-	return nil
-}
-
-
-
-// GetKey 获取密钥
-// 参数:
-//   - index: 密钥索引
-// 返回:
-//   - []byte 密钥
-//   - error 错误信息
-func (j *Jwt) GetKey(index int) ([]byte, error) {
-	if index < 0 || index >= len(j.keyChain) {
-		return nil, errors.New("index out of range")
-	}
-	key := j.keyChain[index]
-	if key == nil {	
-		return nil, errors.New("key is nil")
-	}
-	return key, nil
-}
-
-
 
 // JwtKeyManager 密钥管理器
 type JwtKeyManager struct {
@@ -156,7 +29,6 @@ type JwtKeyManager struct {
 	keyUpdateHandler KeyUpdateHandler // 密钥更新处理函数
 	keysChain [9][]byte // 密钥链，固定容量为9
 	keyInitHandler KeyInitHandler // 密钥初始化处理函数
-	keyCount int // 已初始化的密钥数量
 }
 
 // KeyUpdateHandler 密钥更新处理函数
@@ -194,7 +66,6 @@ func NewJwtKeyManager(keyUpdatePeriod time.Duration,keyInitHandler KeyInitHandle
 		keyInitHandler: keyInitHandler,
 		keyUpdateHandler: keyUpdateHandler,
 		currentKeyIndex: 0,
-		keyCount: 0,
 	}
 }
 
@@ -209,27 +80,28 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 		}
 		return
 	}
-	if len(keyList) > 0  {
+	if index >= 0  {
 		// 初始化密钥链，最多取9个
 		for i, key := range keyList {
 			if i >= 9 {
 				break
 			}
 			j.keysChain[i] = key
-			j.keyCount++
 		}
-		// 确保索引在有效范围内
-		if index >= 0 && index < j.keyCount {
-			j.currentKeyIndex = index
-		} else {
-			j.currentKeyIndex = 0
+		if index >= 9 {
+			resultChan <- types.Result[any]	{
+				ErrCode: 1,
+				Message: "index out of range",
+				Data: nil,
+			}
+			return
 		}
+		j.currentKeyIndex = index
 	}else{
 		// 没有密钥时生成第一个
 		key := utils.RandBytes(32)
 		j.keysChain[0] = key
 		j.currentKeyIndex = 0
-		j.keyCount = 1
 
 		// 更新密钥
 		err = j.keyUpdateHandler(ctx,key,j.currentKeyIndex)
@@ -266,11 +138,6 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 			j.keysChain[nextIndex] = newKey
 			j.currentKeyIndex = nextIndex
 			
-			// 如果还没有填满9个位置，增加计数
-			if j.keyCount < 9 && nextIndex >= j.keyCount {
-				j.keyCount = nextIndex + 1
-			}
-
 			err = j.keyUpdateHandler(ctx,newKey,j.currentKeyIndex) // 更新密钥
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
@@ -293,33 +160,11 @@ func (j *JwtKeyManager) ServiceName() string {
 
 
 func (j *JwtKeyManager) GetCurrentKey() []byte {
-	if j.keyCount == 0 {
-		return nil
-	}
 	return j.keysChain[j.currentKeyIndex]
 }
 
 func (j *JwtKeyManager) GetCurrentKeyIndex() int {
 	return j.currentKeyIndex
-}
-
-func (j *JwtKeyManager) GetKeysChain() [][]byte {
-	result := make([][]byte, j.keyCount)
-	for i := 0; i < j.keyCount; i++ {
-		result[i] = j.keysChain[i]
-	}
-	return result
-}
-
-func (j *JwtKeyManager) GetKeysChainCapacity() int {
-	return 9
-}
-
-// GetKeyCount 获取已初始化的密钥数量
-// 返回:
-//   - int 已初始化的密钥数量
-func (j *JwtKeyManager) GetKeyCount() int {
-	return j.keyCount
 }
 
 // GetKeyByIndex 获取指定索引的密钥
@@ -329,12 +174,56 @@ func (j *JwtKeyManager) GetKeyCount() int {
 //   - []byte 密钥
 //   - error 错误信息
 func (j *JwtKeyManager) GetKeyByIndex(index int) ([]byte, error) {
-	if index < 0 || index >= j.keyCount {
+	if index < 0 || index >= 9 {
 		return nil, errors.New("index out of range")
 	}
-	key := j.keysChain[index]
-	if key == nil {	
-		return nil, errors.New("key is nil")
-	}
-	return key, nil
+	return j.keysChain[index], nil
 }
+
+
+// GenerateSignature 生成签名
+func (j *JwtKeyManager) GenerateSignature(data map[string]string) (*JwtSignerResult, error) {
+	// 获取当前密钥
+	key, err := j.GetKeyByIndex(j.currentKeyIndex)
+	if err != nil {
+		return nil, err
+	}
+	// 对 map 进行字典排序并转换为字符串
+	sortedStr := j.sortMapToString(data)
+	// 使用 HMAC-SHA256 生成签名
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(sortedStr))
+	signature := h.Sum(nil)
+
+	// 返回十六进制编码的签名
+	return &JwtSignerResult{
+		Signature: hex.EncodeToString(signature),
+		KeyIndex:  j.currentKeyIndex,
+	}, nil
+}
+
+
+func (j *JwtKeyManager) sortMapToString(data map[string]string) string {
+	// 获取所有键并排序
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// 按排序后的键顺序构建 key=value&key=value 格式的字符串
+	var result strings.Builder
+	
+	for i, k := range keys {
+		if i > 0 {
+			result.WriteString("&")
+		}
+		
+		result.WriteString(k)
+		result.WriteString("=")
+		result.WriteString(data[k])
+	}
+	
+	return result.String()
+}
+
