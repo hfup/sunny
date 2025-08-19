@@ -109,8 +109,9 @@ func (j *Jwt) sortMapToString(data map[string]string) string {
 	return result.String()
 }
 
-
-
+func (j *Jwt) GetCurrentKeyIndex() int {
+	return j.currentKeyIndex
+}
 
 
 // JwtKeyManager 密钥管理器
