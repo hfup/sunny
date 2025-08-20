@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/hfup/sunny/components/databases"
+	"github.com/hfup/sunny/components/auths"
 	"github.com/hfup/sunny/components/mqs"
 	"github.com/hfup/sunny/components/storages"
 	"github.com/hfup/sunny/types"
@@ -18,7 +19,7 @@ type ResourcesInfo struct {
 	Mq *types.MqConfig `yaml:"mq" json:"mq"`
 	CloudStorage *types.CloudStorageConf `yaml:"cloud_storage" json:"cloud_storage"`
 	UniqueRedis *types.RedisInfo 
-	GaodeKey string `yaml:"gaode_key" json:"gaode_key"` // 高德地图key 
+	JwtKey *types.JwtKeyInfo `yaml:"jwt_key" json:"jwt_key"` // jwt 密钥
 }
  
 type ResourcesHandlerFunc func(ctx context.Context,serviceMark string) (*ResourcesInfo,error)
@@ -108,6 +109,17 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		}
 		app.SetUniqueRedisClient(uniqueRedisClient)
 	}
+
+	// 处理下 jwt 密钥
+	if resourcesInfo.JwtKey != nil{
+		jwtKey:=auths.NewJwt()
+		var arr [9][]byte
+		copy(arr[:],resourcesInfo.JwtKey.Keys)
+		jwtKey.SetKeys(resourcesInfo.JwtKey.CurIndex,arr)
+
+		app.SetJwt(jwtKey)
+	}
+
 	return nil
 }
 

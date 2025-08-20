@@ -105,3 +105,9 @@ type CloudStorageConf struct {
 	Region string `yaml:"region" json:"region"` // 云存储 region
 	Domain string `yaml:"domain" json:"domain"` // 云存储 domain
 }
+
+// jwt 密钥信息
+type JwtKeyInfo struct {
+	Keys [][]byte `yaml:"keys" json:"keys"` // 密钥
+	CurIndex int `yaml:"cur_index" json:"cur_index"` // 当前密钥索引
+}

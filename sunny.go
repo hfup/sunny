@@ -922,13 +922,11 @@ func (s *Sunny) UpdateJwtKey(key []byte,index int) error {
 	return s.jwt.UpdateKey(key,index)
 }
 
-// 生成 jwt 签名
-func (s *Sunny) GenerateJwtSignature(data map[string]string) (*auths.JwtSignerResult,error) {
-	return s.jwt.GenerateSignature(data)
-}
-
-
 // 获取 jwt 签名器
 func (s *Sunny) GetJwt() *auths.Jwt {
 	return s.jwt
+}
+
+func (s *Sunny) SetJwt(jwt *auths.Jwt) {
+	s.jwt = jwt
 }
