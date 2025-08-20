@@ -86,6 +86,28 @@ func (j *Jwt) GenerateSignature(data map[string]string) (*JwtSignerResult, error
 	}, nil
 }
 
+func (j *Jwt) GenerateSignatureWithKeyIndex(data map[string]string,keyIndex int) (string, error) {
+	if keyIndex < 0 || keyIndex >= 9 {
+		return "", errors.New("keyIndex out of range")
+	}
+	key, err := j.GetKeyByIndex(keyIndex)
+	if err != nil {
+		return "", err
+	}
+	if key == nil {
+		return "", errors.New("key is nil")
+	}
+	// 对 map 进行字典排序并转换为字符串
+	sortedStr := j.sortMapToString(data)
+	// 使用 HMAC-SHA256 生成签名
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(sortedStr))
+	signature := h.Sum(nil)
+	return hex.EncodeToString(signature), nil
+}
+
+
+
 func (j *Jwt) sortMapToString(data map[string]string) string {
 	// 获取所有键并排序
 	keys := make([]string, 0, len(data))
