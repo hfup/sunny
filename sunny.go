@@ -542,7 +542,7 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 		}
 	}
 
-
+	logrus.Info("start http services .....")
 	// 开启服务
 	if len(s.config.Services) > 0 {
 		var grpcServer *grpc.Server
@@ -728,9 +728,12 @@ func (s *Sunny) GetGrpcClient(grpcSrvMark string) (grpc.ClientConnInterface,erro
 	// 首先使用读锁检查连接是否已存在
 	s.grpcClientMutex.RLock()
 	if conn, exists := s.grpcClientMaps[grpcSrvMark]; exists {
+		logrus.Infof("grpc client already exists: %s",grpcSrvMark)
 		s.grpcClientMutex.RUnlock()
+
 		return conn, nil
 	}
+
 	s.grpcClientMutex.RUnlock()
 	
 	// 使用写锁创建新连接
@@ -741,6 +744,10 @@ func (s *Sunny) GetGrpcClient(grpcSrvMark string) (grpc.ClientConnInterface,erro
 	if conn, exists := s.grpcClientMaps[grpcSrvMark]; exists {
 		return conn, nil
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"grpcSrvMark": grpcSrvMark,
+	}).Info("create grpc client")
 	
 	// 创建新的 grpc 连接，grpc.NewClient 会自动维护连接状态和重连
 	conn, err := grpc.NewClient(grpcSrvMark, grpc.WithTransportCredentials(insecure.NewCredentials()))
