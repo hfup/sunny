@@ -237,6 +237,17 @@ func (j *JwtKeyManager) Start(ctx context.Context,args any,resultChan chan<- typ
 	ticker := time.NewTicker(j.keyUpdatePeriod) // 定时器
 	defer ticker.Stop()
 
+
+	logrus.WithFields(logrus.Fields{
+		"keyUpdatePeriod": j.keyUpdatePeriod,
+	}).Info("jwt key manager start")
+
+	resultChan <- types.Result[any]	{
+		ErrCode: 0,
+		Message: "jwt key manager start",
+		Data: nil,
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
