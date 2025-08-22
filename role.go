@@ -1,6 +1,10 @@
 package sunny
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/sirupsen/logrus"
+)
 
 type RoleInf interface {
 	RoleLabel() string
@@ -55,6 +59,10 @@ func (r *Role) UseAfter(order int, handlerFunc ActionHandlerFunc) {
 
 func (r *Role) RunBefore(c *Context) {
 	if len(r.beforeActions) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"role": r.roleLabel,
+			"before_actions": len(r.beforeActions),
+		}).Info("run before actions")
 		for _, action := range r.beforeActions {
 			action.ActionHandlerFunc(c)
 			if !c.ActionNext() {

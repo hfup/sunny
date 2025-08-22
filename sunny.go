@@ -356,6 +356,9 @@ func (r *Sunny) initWebRoutes(routes []*types.WebRouterInfo){
 		groupKey := roleLabel + ":" + groupLabel
 		groupInfo, ok := r.groups[groupKey]
 		if !ok {
+			logrus.WithFields(logrus.Fields{
+				"group_key": groupKey,
+			}).Error("group not found")
 			c.JSON(200, gin.H{"err_code": -1, "message": "group not found .."})
 			return
 		}
@@ -663,6 +666,10 @@ func (s *Sunny) SetJwtKeyManager(jwtKeyManager *auths.JwtKeyManager) {
 //  - order 顺序
 //  - handler 处理器
 func (s *Sunny) AddRoleBeforeHandler(roleLabel string,order int,handler ActionHandlerFunc) {
+	logrus.WithFields(logrus.Fields{
+		"roleLabel": roleLabel,
+		"order": order,
+	}).Info("add role before handler")
 	s.rolesBeforeHandlers[roleLabel] = append(s.rolesBeforeHandlers[roleLabel],ActionHandlerWithOrder{
 		Order: order,
 		ActionHandlerFunc: handler,
