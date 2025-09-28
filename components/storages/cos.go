@@ -100,3 +100,11 @@ func (cs *CosStorage) Download(ctx context.Context,objtectKey string) (io.ReadCl
 	return resp.Body,nil
 }
 
+// 获取文件url
+// 参数：
+//  - objtectKey 对象key
+// 返回：
+//  - 文件url
+func (cs *CosStorage) GetUrl(objtectKey string) string {
+	return fmt.Sprintf("https://%s.cos.%s.myqcloud.com/%s",cs.cosInfo.Bucket,cs.cosInfo.Region,objtectKey)
+}

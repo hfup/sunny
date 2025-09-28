@@ -10,6 +10,7 @@ type StorageInf interface {
 	GetType() string
 	Upload(ctx context.Context,objtectKey string,data io.Reader) error
 	Download(ctx context.Context,objtectKey string) (io.ReadCloser,error)
+	GetUrl(objtectKey string) string // 获取文件url
 }
 
 type StorageMangerInf interface {

@@ -2,6 +2,7 @@ package storages
 
 import (
 	"io"
+	"fmt"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/hfup/sunny/types"
 
@@ -91,4 +92,13 @@ func (o *OssStorage) Download(ctx context.Context,objtectKey string) (io.ReadClo
 		return nil,err
 	}
 	return bucket.GetObject(objtectKey)
+}
+
+// 获取文件url
+// 参数：
+//  - objtectKey 对象key
+// 返回：
+//  - 文件url
+func (o *OssStorage) GetUrl(objtectKey string) string {
+	return fmt.Sprintf("https://%s.oss-%s.aliyuncs.com/%s",o.ossInfo.Bucket,o.ossInfo.Region,objtectKey)
 }

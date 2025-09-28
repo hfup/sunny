@@ -35,3 +35,10 @@ type RunAbleInf interface {
 type RegisterGrpcServiceInf interface {
 	RegisterGrpcService(server *grpc.Server)
 }
+
+// 可转换为 json 字符串接口
+type ToJsonString interface {
+	ToJsonString() string
+}
+
+
