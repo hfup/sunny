@@ -224,15 +224,14 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 		s.initWebRoutes(s.config.WebRoutes)
 	}
 
-	// 初始化数据库
-	if len(s.config.Databases) > 0{
-		databaseClientManager := databases.NewLocalDatabaseClientManager(s.config.Databases)
-		if s.config.DatabaseDebug { // 数据库调试模式
-			databaseClientManager.SetDebug(true)
-		}
-		s.UseStartFunc(databaseClientManager) // 资源初始化
-		s.databaseClientManager = databaseClientManager
+	databaseDebug := false
+	if s.config.DatabaseDebug {
+		databaseDebug = true
 	}
+	databaseClientManager := databases.NewDatabaseClientManager(databaseDebug)
+	s.UseStartFunc(databaseClientManager) // 资源初始化
+	s.databaseClientManager = databaseClientManager
+
 
 	// 初始化 redis
 	if s.config.Redis != nil{
@@ -323,7 +322,7 @@ func (s *Sunny) loadConfig() error{
 	return nil
 }
 
-
+// 初始化路由
 func (r *Sunny) initWebRoutes(routes []*types.WebRouterInfo){
 	ginHandlerFunc := func(c *gin.Context) {
 		fullPath := c.FullPath()

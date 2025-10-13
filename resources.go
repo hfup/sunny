@@ -55,18 +55,33 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		return err
 	}
 	if len(resourcesInfo.Redis) > 0{
-		redisClientManager := databases.NewLocalRedisClientManager(resourcesInfo.Redis)
-		app.SetRedisClientManager(redisClientManager)
-		app.UseStartFunc(redisClientManager)
-	}
-	if len(resourcesInfo.Databases) > 0{
-		databaseClientManager := databases.NewLocalDatabaseClientManager(resourcesInfo.Databases)
-		if app.config.DatabaseDebug { // 数据库调试模式
-			databaseClientManager.SetDebug(true)
+		var redisClientManager databases.RedisClientManagerInf
+		if app.redisManager != nil{
+			redisClientManager = app.redisManager
+		}else{
+			redisClientManager = databases.NewRedisClientManager(false)
+			app.SetRedisClientManager(redisClientManager)
+			app.UseStartFunc(redisClientManager)
 		}
-		app.SetDatabaseClientManager(databaseClientManager)
-		app.UseStartFunc(databaseClientManager)
+		redisClientManager.AddRedisConfigs(resourcesInfo.Redis) // 添加 redis 配置
 	}
+	if len(resourcesInfo.Databases) > 0{ // 这里是远程获取数据库配置
+		databaseDebug := false
+		if app.config.DatabaseDebug {
+			databaseDebug = true
+		}
+		var databaseManager databases.DatabaseClientMangerInf
+		if app.databaseClientManager != nil{
+			databaseManager = app.databaseClientManager
+		}else{
+			databaseManager = databases.NewDatabaseClientManager(databaseDebug)
+			app.SetDatabaseClientManager(databaseManager)
+			app.UseStartFunc(databaseManager)
+		}
+		databaseManager.AddDBConfigs(resourcesInfo.Databases) // 添加数据库配置
+	}
+
+	// mq 处理
 	if resourcesInfo.Mq != nil{
 		if app.mqFailStore == nil{
 			app.mqFailStore = mqs.GetDefaultFailedStore()
@@ -78,6 +93,8 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 		app.SetMqManager(mqManager)
 		app.AddSubServices(mqManager)
 	}
+
+	// 云存储 处理
 	if resourcesInfo.CloudStorage != nil{
 		switch resourcesInfo.CloudStorage.StorageType {
 		case "tencent_cos":
@@ -100,14 +117,18 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 			logrus.Error("cloud storage type not support")
 		}
 	}
-	
-	// 处理下 unique redis
+	// 处理下 unique redis 这里直接 当成 默认的redis 使用
 	if resourcesInfo.UniqueRedis != nil{
-		uniqueRedisClient,err := databases.RedisConnect(resourcesInfo.UniqueRedis)
-		if err != nil{
-			return err
+		resourcesInfo.UniqueRedis.AreaKey = "default"
+		var redisClientManager databases.RedisClientManagerInf
+		if app.redisManager != nil{
+			redisClientManager = app.redisManager
+		}else{
+			redisClientManager = databases.NewRedisClientManager(false)
+			app.SetRedisClientManager(redisClientManager)
+			app.UseStartFunc(redisClientManager)
 		}
-		app.SetUniqueRedisClient(uniqueRedisClient)
+		redisClientManager.AddRedisConfigs([]*types.RedisInfo{resourcesInfo.UniqueRedis}) // 添加 redis 配置
 	}
 
 	// 处理下 jwt 密钥

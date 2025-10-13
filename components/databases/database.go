@@ -16,9 +16,9 @@ type DBRouterFunc func(key string) (string, error) // key -> areaKey -> gorm.DB 
 type DatabaseClientMangerInf interface {
 	types.RunAbleInf // 初始化操作
 	GetDBFromKey(key string) (*gorm.DB, error) // key -> gorm.DB 数据库实例
-	SetRouterHandler(routerHandler DBRouterFunc) // 
+	SetRouterHandler(routerHandler DBRouterFunc) // 设置路由处理函数
 	AddDBConfigs(dbConfigs []*types.DatabaseInfo) // 添加数据库配置
-	Debug() bool // 是否开启调试
+	IsDebug() bool // 是否开启调试
 }
 
 // 数据库管理器
@@ -44,7 +44,7 @@ func (d *DatabaseClientManager) IsDebug() bool {
 // 设置数据库路由函数
 // 参数：
 //   - dbRouterFunc 数据库路由函数
-func (d *DatabaseClientManager) SetDBRouterFunc(dbRouterFunc DBRouterFunc) {
+func (d *DatabaseClientManager) SetRouterHandler(dbRouterFunc DBRouterFunc) {
 	d.dbRouterFunc = dbRouterFunc
 }
 
@@ -68,7 +68,7 @@ func (d *DatabaseClientManager) Debug() bool {
 // 启动数据库管理器
 func (d *DatabaseClientManager) Run(ctx context.Context, app any) error {
 	if len(d.dbConfigs) == 0 {
-		logrus.Warn("database manager start error: db configs is empty") // 没有配置数据库
+		logrus.Info("database manager start error: db configs is empty") // 没有配置数据库
 		return nil
 	}
 	isSingle := len(d.dbConfigs) == 1
@@ -98,7 +98,11 @@ func (d *DatabaseClientManager) GetDBFromKey(key string) (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		return d.dbMap[areaKey], nil
+		db, ok := d.dbMap[areaKey]
+		if !ok {
+			return nil, errors.New("database not found")
+		}
+		return db, nil
 	}
 	db, ok := d.dbMap[key]
 	if !ok {
@@ -119,11 +123,6 @@ func (d *DatabaseClientManager) GetDefaultDB() (*gorm.DB, error) {
 
 func (d *DatabaseClientManager) Description() string {
 	return "数据库管理器"
-}
-
-
-func (d *DatabaseClientManager) IsErrorStop() bool {
-	return true
 }
 
 
