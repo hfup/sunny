@@ -85,9 +85,9 @@ type Sunny struct {
 
 	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
+
 	mqsManager mqs.MqManagerInf // mq 管理器
 	mqFailStore mqs.FailedMessageStore // mq 失败消息存储
-
 
 	grpcServices             []types.RegisterGrpcServiceInf
 	grpcServerInterceptorHandler grpc.UnaryServerInterceptor // grpc 服务拦截器
@@ -111,6 +111,7 @@ type Sunny struct {
 
 
 	onStartFunc []types.RunAbleInf // 启动时执行的函数 资源初始化
+	onStopFunc []types.RunAbleInf // 停止时执行的函数 资源释放 
 
 	// 同步执行的 RunAble
 	syncRunAbles []types.RunAbleInf
@@ -120,6 +121,16 @@ type Sunny struct {
 	subSrvCount int // 子服务数量
 	errSrvCount int // 启动失败子服务数量
 }
+
+// 添加停止时执行的函数 
+// 参数：
+//  - runAbles 停止时执行的函数
+// 返回：
+//  - 错误
+func (s *Sunny) AddStopFunc(runAbles ...types.RunAbleInf) {
+	s.onStopFunc = append(s.onStopFunc,runAbles...)
+}
+
 
 // 设置服务标识	
 // 参数：
@@ -550,6 +561,7 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 	if len(s.config.Services) > 0 {
 		var grpcServer *grpc.Server
 		startHttpServices := make([]*http.Server, 0)
+
 		for _, service := range s.config.Services {
 			if service.Protocol == "http" {
 				httpSrv := &http.Server{
@@ -607,7 +619,7 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 			}
 		}
 		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // 监听信号
 		<-quit
 
 		cctx, cancel := context.WithTimeout(ctx, 1*time.Second) // 超时为了处理未完成的请求给的最大时间 如果该时间内未完成则强制关闭
@@ -616,11 +628,27 @@ func (s *Sunny) Start(ctx context.Context,args ...string) error{
 			if err := srv.Shutdown(cctx); err != nil {
 				logrus.Errorf("HTTP server shutdown error: %v", err)
 			}
+			logrus.Infof("HTTP server shutdown success: %s", srv.Addr)
 		}
-		if grpcServer != nil {
+		if grpcServer != nil { // 停止 grpc 服务
 			grpcServer.GracefulStop()
 		}
+
+		// 停止时执行的函数
+		if len(s.onStopFunc) > 0 {
+			for _,runAble := range s.onStopFunc{
+				err=runAble.Run(cldCtx,s)
+				if err != nil{
+					logrus.WithFields(logrus.Fields{
+						"err_message": err.Error(),
+						"tip":runAble.Description(),
+					}).Error("stop func run error")
+				}
+			}
+		}
+
 		<-cctx.Done()
+
 		logrus.Info("server shutdown success")
 	}
 
@@ -932,6 +960,11 @@ func (s *Sunny) SetUniqueRedisClient(client redis.UniversalClient) {
 }
 
 // 更新 jwt 密钥
+// 参数：
+//  - key 密钥
+//  - index 索引 当前激活的索引
+// 返回：
+//  - 错误
 func (s *Sunny) UpdateJwtKey(key []byte,index int) error {
 	return s.jwt.UpdateKey(key,index)
 }
