@@ -82,7 +82,7 @@ type Sunny struct {
 	rolesAfterHandlers map[string][]ActionHandlerWithOrder // 角色后置处理器
 
 	subServices []types.SubServiceInf
-	uniqueRedisClient redis.UniversalClient // 唯一ID 生成器 redis 客户端
+	//uniqueRedisClient redis.UniversalClient // 唯一ID 生成器 redis 客户端
 
 	redisManager databases.RedisClientManagerInf // redis 管理器
 	databaseClientManager databases.DatabaseClientMangerInf // 数据库管理器
@@ -963,16 +963,12 @@ func (s *Sunny) SetStorager(storager storages.StorageInf) {
 // 唯一ID 生成器 和 全局锁 ID 和 缓存redis 客户端 作区分
 // 这里是获取 唯一ID 生成器 redis 客户端
 func (s *Sunny) GetUniqueRedis() (redis.UniversalClient,error) {
-	if s.uniqueRedisClient == nil{
-		return nil,errors.New("unique redis client is not set")
+	if s.redisManager == nil{
+		return nil,errors.New("redis client manager is not set")
 	}
-	return s.uniqueRedisClient, nil
+	return s.redisManager.GetClientFromKey("default")
 }
 
-// 绑定唯一ID 生成器 redis 客户端
-func (s *Sunny) SetUniqueRedisClient(client redis.UniversalClient) {
-	s.uniqueRedisClient = client
-}
 
 // 更新 jwt 密钥
 // 参数：
