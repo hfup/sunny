@@ -10,6 +10,7 @@ type Config struct {
 	Databases []*DatabaseInfo `yaml:"databases" json:"databases"` // 数据库配置
 	Redis []*RedisInfo `yaml:"redis" json:"redis"` // redis 配置
 	Mq *MqConfig `yaml:"mq" json:"mq"` // mq 配置
+	JwtKey string `yaml:"jwt_key" json:"jwt_key"` // jwt 密钥 base64 编码
 }
 
 // 路由信息

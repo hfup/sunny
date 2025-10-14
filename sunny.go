@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"encoding/base64"
 
 	"github.com/hfup/sunny/components/auths"
 	"github.com/hfup/sunny/components/databases"
@@ -233,12 +234,27 @@ func (s *Sunny) Init(configPath,activeEnv string) error{
 	s.databaseClientManager = databaseClientManager
 
 
-	// 初始化 redis
-	if s.config.Redis != nil{
-		redisClientManager := databases.NewLocalRedisClientManager(s.config.Redis)
-		s.UseStartFunc(redisClientManager) // 资源初始化
-		s.redisManager = redisClientManager
+	redisClientManager := databases.NewRedisClientManager(false)
+	s.UseStartFunc(redisClientManager) // 资源初始化
+	s.redisManager = redisClientManager
+
+	jwrManager:=auths.NewJwt()
+	if s.config.JwtKey != ""{
+		// base64 解码
+		keys,err := base64.StdEncoding.DecodeString(s.config.JwtKey)
+		if err != nil{
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Error("decode jwt key error")
+			return err
+		}
+		keysArr := [9][]byte{}
+		keysArr[0] = keys 
+		jwrManager.SetKeys(0,keysArr) // 设置 jwt 密钥
 	}
+
+	s.SetJwt(jwrManager)
+
 	// 初始化远程资源管理器
 	if s.remoteResourceManager != nil{
 		err = s.remoteResourceManager.Init(context.TODO(),s)
@@ -973,6 +989,7 @@ func (s *Sunny) GetJwt() *auths.Jwt {
 	return s.jwt
 }
 
+// 设置 jwt 签名器
 func (s *Sunny) SetJwt(jwt *auths.Jwt) {
 	s.jwt = jwt
 }

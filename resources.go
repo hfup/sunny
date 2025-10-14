@@ -133,12 +133,9 @@ func (r *RemoteResourceManager) Init(ctx context.Context,app *Sunny) error {
 
 	// 处理下 jwt 密钥
 	if resourcesInfo.JwtKey != nil{
-		jwtKey:=auths.NewJwt()
 		var arr [9][]byte
 		copy(arr[:],resourcesInfo.JwtKey.Keys)
-		jwtKey.SetKeys(resourcesInfo.JwtKey.CurIndex,arr)
-
-		app.SetJwt(jwtKey)
+		app.jwt.SetKeys(resourcesInfo.JwtKey.CurIndex,arr)
 	}
 
 	return nil
