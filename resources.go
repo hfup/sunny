@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/hfup/sunny/components/databases"
-	"github.com/hfup/sunny/components/auths"
 	"github.com/hfup/sunny/components/mqs"
 	"github.com/hfup/sunny/components/storages"
 	"github.com/hfup/sunny/types"
